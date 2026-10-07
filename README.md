@@ -38,5 +38,26 @@ This project will:
 Under active development.
 
 ### Current stage
+**Phase 2 — Historical Data Pipeline**
 
-Stage 0 - Repository and environment setup
+Completed:
+
+- ✅ Project repository and environment setup
+- ✅ Installable Python package
+- ✅ pytest and Ruff configuration
+- ✅ Project configuration system
+- ✅ Binance public API client
+- ✅ Canonical candle normalisation
+- ✅ Historical pagination
+- ✅ Multi-asset data download for BTCUSDT, ETHUSDT, SOLUSDT, and BNBUSDT
+- ✅ Closed-candle filtering
+
+In progress:
+
+- 🔄 Data validation
+- 🔄 Missing timestamp / gap detection
+
+Next:
+
+- Reproducible dataset persistence
+- Exploratory data analysis
