@@ -3,13 +3,17 @@ project:
   random_seed: 42
 
 data:
-  assets:
-    BTC: BTC-USD
-    ETH: ETH-USD
-    SOL: SOL-USD
-    BNB: BNB-USD
+  exchange: "binance"
 
-  start_date: "2020-01-01"
+  symbols:
+    BTC: BTCUSDT
+    ETH: ETHUSDT
+    SOL: SOLUSDT
+    BNB: BNBUSDT
+
+  interval: "1d"
+
+  start_date: "2021-01-01"
   end_date: null
 
   raw_dir: data/raw

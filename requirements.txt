@@ -4,3 +4,4 @@ matplotlib
 pyyaml
 pytest
 ruff
+requests

@@ -23,8 +23,20 @@ This project will:
 - Bitcoin (BTC)
 - Ethereum (ETH)
 - Solana (SOL)
-- Binance (BNB)
+- Binance Coin (BNB)
 
-## Status
+## Planned models
+- Naive volatility baseline
+- HAR-RV
+- EGARCH
+- Tree-based ML models
+- LSTM
+- Additional models where justified
+
+## Project Status
 
 Under active development.
+
+### Current stage
+
+Stage 0 - Repository and environment setup
