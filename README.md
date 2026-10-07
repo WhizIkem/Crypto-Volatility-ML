@@ -1,6 +1,6 @@
 # Crypto Volatility Forecasting & Paper Trading System
 
-An end-to-end quantitative finance and machine learning project for forecasting cryptocurrency volatility and using volatility forecast to drive dynamic portfolio allocation and paper trading.
+An end-to-end quantitative finance and machine learning project for forecasting cryptocurrency volatility and using those forecasts to drive dynamic portfolio allocation, backtesting, and live paper trading.
 
 ## Project Goals
 
@@ -38,7 +38,7 @@ This project will:
 Under active development.
 
 ### Current stage
-**Phase 2 — Historical Data Pipeline**
+**Phase 2: Historical Data Pipeline**
 
 Completed:
 
