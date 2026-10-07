@@ -12,7 +12,14 @@ requires-python = ">=3.12"
 authors = [{ name = "WhizIkem" }]
 
 # Dependencies
-dependencies = ["numpy", "pandas", "matplotlib", "pyyaml", "requests"]
+dependencies = [
+  "numpy",
+  "pandas",
+  "matplotlib",
+  "pyyaml",
+  "requests",
+  "pyarrow",
+]
 
 # Optional dependencies (extras) can be specified here if needed
 [project.optional-dependencies]
