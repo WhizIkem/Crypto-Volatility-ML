@@ -1,0 +1,42 @@
+# Project metadata and build backend configuration
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crypto_volatility_ml"
+version = "0.1.0"
+description = "End-to-end cryptocurrency volatility forecasting and paper trading system"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "WhizIkem" }]
+
+# Dependencies
+dependencies = ["numpy", "pandas", "matplotlib", "pyyaml"]
+
+# Optional dependencies (extras) can be specified here if needed
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+# Setuptools package discovery configuration
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Pytest configuration options
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+# Ruff linter configuration
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+# 
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+# 
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

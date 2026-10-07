@@ -1,0 +1,34 @@
+project:
+  name: crypto_volatility_ml
+  random_seed: 42
+
+data:
+  assets:
+    BTC: BTC-USD
+    ETH: ETH-USD
+    SOL: SOL-USD
+    BNB: BNB-USD
+
+  start_date: "2020-01-01"
+  end_date: null
+
+  raw_dir: data/raw
+  interim_dir: data/interim
+  processed_dir: data/processed
+
+features:
+  realized_volatility: 
+    method: garman_klass
+
+  rolling_window:
+    - 7
+    - 30
+
+model:
+  target_horizon: 1
+
+portfolio:
+  initial_capital: 1000000
+
+logging:
+  level: INFO

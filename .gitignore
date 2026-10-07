@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Testing / coverage
+.pytest_cache/
+coverage
+htmlcov/
+
+# Type checking / linting
+.mypy_cache/
+.ruff_cache/
+
+#IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Project data
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Trained models / artifacts
+models/checkpoints/
+models/production/
+models/artifacts/*
+!models/artifacts/.gitkeep
+!models/checkpoints/.gitkeep
+!models/production/.gitkeep
+
+# Generated reports
+reports/figures/*
+reports/metrics/*
+!reports/metrics/.gitkeep
+!reports/figures/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# Secrets / credentials
+*.key
+*.pem
