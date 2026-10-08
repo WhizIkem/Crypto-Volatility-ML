@@ -19,6 +19,8 @@ dependencies = [
   "pyyaml",
   "requests",
   "pyarrow",
+  "scipy",
+  "statsmodels",
 ]
 
 # Optional dependencies (extras) can be specified here if needed

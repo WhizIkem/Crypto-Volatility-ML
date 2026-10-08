@@ -60,37 +60,36 @@ Under active development.
 
 ### Current Stage
 
-**Phase 3: Exploratory Data Analysis**
+**Phase 4: Feature Engineering**
 
 ### Completed
 
-- ✅ Project repository and environment setup
-- ✅ Installable Python package
-- ✅ pytest and Ruff configuration
-- ✅ Project configuration system
-- ✅ Binance public API client
-- ✅ Canonical candle normalisation
-- ✅ Historical pagination
-- ✅ Multi-asset data download
-- ✅ Closed-candle filtering
-- ✅ Data validation
-- ✅ Missing timestamp / gap detection
-- ✅ Raw dataset persistence
-- ✅ Clean/interim dataset persistence
-- ✅ Reproducible Binance historical data pipeline
+- ✅ Project foundation
+- ✅ Binance historical data pipeline
+- ✅ Data validation and persistence
+- ✅ Exploratory data analysis
+- ✅ Price and return analysis
+- ✅ Volatility analysis
+- ✅ Distribution diagnostics
+- ✅ Correlation and rolling-correlation analysis
+- ✅ Volatility clustering and autocorrelation analysis
+- ✅ ARCH-LM diagnostics
+- ✅ Stationarity diagnostics
+- ✅ Volatility regime analysis
 
 ### In Progress
 
-- 🔄 Exploratory data analysis
+- 🔄 Feature engineering
 
 ### Next
 
-- Price behaviour
-- Return analysis
-- Volatility analysis
-- Distribution diagnostics
-- Correlation analysis
-- Volatility clustering
-- Regime behaviour
-- Statistical diagnostics
-- Feature engineering
+- Log-return features
+- Garman–Klass volatility features
+- Lagged volatility
+- Weekly and monthly volatility aggregates
+- Negative-return and squared-return features
+- Volume features
+- RSI
+- Binance-specific activity features
+- Target construction
+- Leakage checks

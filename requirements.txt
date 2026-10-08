@@ -5,3 +5,6 @@ pyyaml
 pytest
 ruff
 requests
+pyarrow
+scipy
+statsmodels
