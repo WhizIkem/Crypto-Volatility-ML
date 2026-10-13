@@ -3,7 +3,9 @@ from pathlib import Path
 import yaml
 
 
-def load_config(config_path: str | Path = "configs/config.yaml") -> dict:
+def load_config(
+        config_path: str | Path = "configs/config.yaml"
+        ) -> dict:
     """
     Load the project YAML configuration file.
 

@@ -56,40 +56,47 @@ Current research configuration:
 
 ## Project Status
 
-Under active development.
-
 ### Current Stage
 
 **Phase 4: Feature Engineering**
 
 ### Completed
 
-- ✅ Project foundation
-- ✅ Binance historical data pipeline
-- ✅ Data validation and persistence
-- ✅ Exploratory data analysis
-- ✅ Price and return analysis
-- ✅ Volatility analysis
-- ✅ Distribution diagnostics
-- ✅ Correlation and rolling-correlation analysis
-- ✅ Volatility clustering and autocorrelation analysis
-- ✅ ARCH-LM diagnostics
-- ✅ Stationarity diagnostics
+- ✅ Phase 1 — Project foundation and environment setup
+- ✅ Phase 2 — Binance historical data pipeline
+- ✅ Historical OHLCV download and pagination
+- ✅ Data validation and missing-timestamp checks
+- ✅ Raw and cleaned Parquet persistence
+- ✅ Phase 3 — Exploratory data analysis
+- ✅ Price and normalized-price analysis
+- ✅ Log-return analysis
+- ✅ Rolling and Garman–Klass volatility analysis
+- ✅ Return distribution and normality diagnostics
+- ✅ Cross-asset return and volatility correlations
+- ✅ Rolling correlation analysis
+- ✅ ACF and PACF diagnostics
+- ✅ ARCH-LM testing
+- ✅ ADF and KPSS stationarity diagnostics
+- ✅ Log-volatility analysis
 - ✅ Volatility regime analysis
+- ✅ Reusable EDA analysis modules
+- ✅ Unit tests for core EDA calculations and diagnostics
+- ✅ Reproducible EDA pipeline
+- ✅ Reproducible EDA tables and selected figures
 
 ### In Progress
 
-- 🔄 Feature engineering
+- 🔄 Phase 4 — Feature Engineering
 
 ### Next
 
-- Log-return features
-- Garman–Klass volatility features
-- Lagged volatility
-- Weekly and monthly volatility aggregates
-- Negative-return and squared-return features
-- Volume features
-- RSI
-- Binance-specific activity features
-- Target construction
-- Leakage checks
+- Define the forecasting target
+- Build lagged return features
+- Build lagged volatility features
+- Build HAR-style daily, weekly, and monthly volatility features
+- Build squared-return and downside-return features
+- Build volume and trading-activity features
+- Investigate RSI and other candidate market features
+- Prevent temporal leakage
+- Validate feature availability at prediction time
+- Produce the model-ready dataset

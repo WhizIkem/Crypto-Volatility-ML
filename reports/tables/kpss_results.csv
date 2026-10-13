@@ -1,0 +1,17 @@
+asset,variable,regression,kpss_statistic,p_value,lags_used,reject_stationarity_5pct
+BTC,close_price,ct,0.8613483170959407,0.01,28,True
+BTC,log_return,c,0.09330339735535348,0.1,6,False
+BTC,gk_volatility_annualized,c,3.327829473261866,0.01,25,True
+BTC,log_gk_volatility,c,3.4894164652628565,0.01,24,True
+ETH,close_price,ct,0.34406151647757127,0.01,28,True
+ETH,log_return,c,0.14567737479469392,0.1,2,False
+ETH,gk_volatility_annualized,c,2.1745564101436208,0.01,25,True
+ETH,log_gk_volatility,c,2.0732107959530066,0.01,25,True
+SOL,close_price,ct,0.4702027677988605,0.01,28,True
+SOL,log_return,c,0.4882847625807588,0.04430523365298225,7,True
+SOL,gk_volatility_annualized,c,3.9121721287401354,0.01,25,True
+SOL,log_gk_volatility,c,4.34682568376118,0.01,25,True
+BNB,close_price,ct,0.6548298414176603,0.01,28,True
+BNB,log_return,c,0.37081297026485294,0.08973578867894269,3,False
+BNB,gk_volatility_annualized,c,2.938041740265663,0.01,25,True
+BNB,log_gk_volatility,c,3.2098233767951188,0.01,26,True
