@@ -58,7 +58,7 @@ Current research configuration:
 
 ### Current Stage
 
-**Phase 4: Feature Engineering**
+**Phase 5: Model-Ready Datasets**
 
 ### Completed
 
@@ -68,35 +68,34 @@ Current research configuration:
 - ✅ Data validation and missing-timestamp checks
 - ✅ Raw and cleaned Parquet persistence
 - ✅ Phase 3 — Exploratory data analysis
-- ✅ Price and normalized-price analysis
-- ✅ Log-return analysis
-- ✅ Rolling and Garman–Klass volatility analysis
-- ✅ Return distribution and normality diagnostics
-- ✅ Cross-asset return and volatility correlations
-- ✅ Rolling correlation analysis
-- ✅ ACF and PACF diagnostics
-- ✅ ARCH-LM testing
-- ✅ ADF and KPSS stationarity diagnostics
-- ✅ Log-volatility analysis
-- ✅ Volatility regime analysis
+- ✅ Price, return, volatility, and distribution diagnostics
+- ✅ Correlation, autocorrelation, ARCH, stationarity, and regime analysis
 - ✅ Reusable EDA analysis modules
-- ✅ Unit tests for core EDA calculations and diagnostics
-- ✅ Reproducible EDA pipeline
-- ✅ Reproducible EDA tables and selected figures
+- ✅ Reproducible EDA tables and figures
+- ✅ Phase 4 — Feature engineering
+- ✅ Next-day log Garman–Klass volatility target
+- ✅ Lagged return and volatility features
+- ✅ HAR-style weekly and monthly volatility features
+- ✅ Return-magnitude and downside-shock features
+- ✅ Volume and trading-activity features
+- ✅ Momentum and RSI features
+- ✅ Cross-asset aggregate features
+- ✅ Feature redundancy and missingness audit
+- ✅ Reusable feature-engineering pipeline
+- ✅ Model-ready dataset construction
+- ✅ Unit tests for feature generation and dataset preparation
+- ✅ Processed model datasets saved to Parquet
 
 ### In Progress
 
-- 🔄 Phase 4 — Feature Engineering
+- 🔄 Phase 5 — Model-Ready Datasets
 
 ### Next
 
-- Define the forecasting target
-- Build lagged return features
-- Build lagged volatility features
-- Build HAR-style daily, weekly, and monthly volatility features
-- Build squared-return and downside-return features
-- Build volume and trading-activity features
-- Investigate RSI and other candidate market features
-- Prevent temporal leakage
-- Validate feature availability at prediction time
-- Produce the model-ready dataset
+- Define chronological train / validation / test periods
+- Prevent temporal leakage during splitting
+- Decide whether scaling is needed per model family
+- Fit preprocessing only on training data
+- Save split metadata
+- Verify feature and target alignment after splitting
+- Prepare datasets for baseline and forecasting models
