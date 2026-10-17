@@ -58,44 +58,34 @@ Current research configuration:
 
 ### Current Stage
 
-**Phase 5: Model-Ready Datasets**
+**Phase 6: Model Research**
 
 ### Completed
 
 - ✅ Phase 1 — Project foundation and environment setup
 - ✅ Phase 2 — Binance historical data pipeline
-- ✅ Historical OHLCV download and pagination
-- ✅ Data validation and missing-timestamp checks
-- ✅ Raw and cleaned Parquet persistence
 - ✅ Phase 3 — Exploratory data analysis
-- ✅ Price, return, volatility, and distribution diagnostics
-- ✅ Correlation, autocorrelation, ARCH, stationarity, and regime analysis
-- ✅ Reusable EDA analysis modules
-- ✅ Reproducible EDA tables and figures
 - ✅ Phase 4 — Feature engineering
-- ✅ Next-day log Garman–Klass volatility target
-- ✅ Lagged return and volatility features
-- ✅ HAR-style weekly and monthly volatility features
-- ✅ Return-magnitude and downside-shock features
-- ✅ Volume and trading-activity features
-- ✅ Momentum and RSI features
-- ✅ Cross-asset aggregate features
-- ✅ Feature redundancy and missingness audit
-- ✅ Reusable feature-engineering pipeline
-- ✅ Model-ready dataset construction
-- ✅ Unit tests for feature generation and dataset preparation
-- ✅ Processed model datasets saved to Parquet
+- ✅ Phase 5 — Model-ready datasets
+- ✅ Chronological train / validation / test splitting
+- ✅ Leakage-safe time-series partitioning
+- ✅ Train-only feature scaling
+- ✅ Model input preparation
+- ✅ Unit tests for preprocessing and model inputs
 
 ### In Progress
 
-- 🔄 Phase 5 — Model-Ready Datasets
+- 🔄 Phase 6 — Model Research
 
 ### Next
 
-- Define chronological train / validation / test periods
-- Prevent temporal leakage during splitting
-- Decide whether scaling is needed per model family
-- Fit preprocessing only on training data
-- Save split metadata
-- Verify feature and target alignment after splitting
-- Prepare datasets for baseline and forecasting models
+- Naive volatility baselines
+- Historical-average baseline
+- HAR-style regression
+- EGARCH
+- Linear ML baselines
+- Tree-based ML models
+- LSTM
+- VAR / cross-asset volatility modelling
+- Walk-forward validation
+- Out-of-sample model comparison

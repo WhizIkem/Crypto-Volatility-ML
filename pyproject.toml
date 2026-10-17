@@ -21,6 +21,7 @@ dependencies = [
   "pyarrow",
   "scipy",
   "statsmodels",
+  "scikit-learn",
 ]
 
 # Optional dependencies (extras) can be specified here if needed
