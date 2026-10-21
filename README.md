@@ -65,7 +65,7 @@ The 28-feature set is still kept for research comparisons.
 
 Time-series leakage is treated as a hard constraint.
 
-The pipeline uses:
+The pipeline currently uses:
 
 - chronological train / validation / test splits;
 - no random shuffling;
@@ -73,13 +73,16 @@ The pipeline uses:
 - training-only feature scaling;
 - expanding-window time-series cross-validation;
 - a one-row gap inside cross-validation folds;
+- features built only from information available at the forecast date;
 - an untouched final test set.
+
+The purge prevents the target at `t + 1` from crossing train, validation, or test boundaries.
 
 The final test set will only be used after feature selection, model selection, and hyperparameter tuning are complete.
 
 ## Model Results So Far
 
-### Naive Baselines
+### Naive Baseline
 
 The 7-day rolling mean was the strongest naive volatility benchmark for all four assets.
 
@@ -152,6 +155,25 @@ Lasso removed only one feature completely: BTC log volume.
 
 The 7-day volatility feature remained the strongest standardized coefficient across all assets.
 
+### Nonlinear ML
+
+Random Forest and Gradient Boosting were tested using the same compact seven-feature set and training-only time-series hyperparameter tuning.
+
+| Asset | Ridge | Lasso | Random Forest | Gradient Boosting |
+| --- | ---: | ---: | ---: | ---: |
+| BTC | 0.4886 | 0.4899 | **0.4865** | 0.4974 |
+| ETH | 0.4470 | **0.4468** | 0.4656 | 0.4499 |
+| SOL | **0.3941** | 0.3943 | 0.3976 | 0.3942 |
+| BNB | 0.4512 | **0.4497** | 0.4630 | 0.4646 |
+
+Nonlinear models did not consistently outperform the simpler regularized linear models.
+
+Random Forest performed best for BTC, while Lasso remained best for ETH and BNB and Ridge remained best for SOL.
+
+The 7-day volatility feature remained the most important predictor for BTC, ETH, and SOL.
+
+For BNB, log volume and 7-day volatility were the dominant tree-model features.
+
 ## Current Findings
 
 So far:
@@ -161,7 +183,23 @@ So far:
 3. HAR-GK beats simple volatility baselines.
 4. EGARCH is weaker for the selected Garman-Klass target.
 5. Ridge and Lasso provide small improvements over HAR-GK.
-6. A compact seven-feature set performs well without using all 28 candidate features.
+6. Nonlinear tree models do not consistently improve forecasting accuracy.
+7. Random Forest gives the best current BTC validation result.
+8. Simpler regularized linear models remain strongest for ETH, SOL, and BNB.
+9. A compact seven-feature set performs well without needing all 28 candidate features.
+
+## Current Model Leaders
+
+| Asset | Best Validation Model | RMSE |
+| --- | --- | ---: |
+| BTC | Random Forest | 0.4865 |
+| ETH | Lasso | 0.4468 |
+| SOL | Ridge | 0.3941 |
+| BNB | Lasso | 0.4497 |
+
+These are validation results only.
+
+The final test set remains untouched.
 
 ## Project Status
 
@@ -182,12 +220,14 @@ Completed:
 - ✅ Compact feature selection
 - ✅ Ridge regression
 - ✅ Lasso regression
+- ✅ Random Forest
+- ✅ Gradient Boosting
 - ✅ Training-only time-series hyperparameter tuning
 
 Next:
 
-- 🔄 Nonlinear ML models
-- ⬜ Deep-learning models
+- 🔄 LSTM sequence modelling
+- ⬜ VAR / cross-asset volatility analysis
 - ⬜ Final validation comparison
 - ⬜ Final untouched test evaluation
 - ⬜ Portfolio allocation
@@ -196,9 +236,7 @@ Next:
 - ⬜ Paper trading
 - ⬜ Deployment and monitoring
 
-## Planned Model Families
-
-The project compares models only where they are useful and justified.
+## Model Families
 
 Current and planned models include:
 
@@ -207,7 +245,8 @@ Current and planned models include:
 - EGARCH;
 - Ridge;
 - Lasso;
-- tree-based ML models;
+- Random Forest;
+- Gradient Boosting;
 - LSTM;
 - VAR / cross-asset volatility analysis.
 
