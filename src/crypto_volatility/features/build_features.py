@@ -48,6 +48,19 @@ CANDIDATE_FEATURES = [
     "cross_asset_volatility_dispersion",
 ]
 
+CORE_FEATURES = [
+    "log_gk_volatility",
+    "har_vol_weekly",
+    "har_vol_monthly",
+    "absolute_return",
+    "log_volume",
+    "cross_asset_mean_log_volatility",
+]
+
+CORE_PLUS_DOWNSIDE_FEATURES = [
+    *CORE_FEATURES,
+    "downside_return",
+]
 
 def _validate_required_columns(
     df: pd.DataFrame,

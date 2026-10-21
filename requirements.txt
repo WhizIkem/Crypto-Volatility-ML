@@ -9,3 +9,4 @@ pyarrow
 scipy
 statsmodels
 scikit-learn
+arch

@@ -46,12 +46,12 @@ def test_prepare_model_inputs_shapes():
     )
 
     assert inputs.x_train.shape == (
-        70,
+        69,
         2,
     )
 
     assert inputs.x_validation.shape == (
-        15,
+        14,
         2,
     )
 
@@ -60,8 +60,8 @@ def test_prepare_model_inputs_shapes():
         2,
     )
 
-    assert len(inputs.y_train) == 70
-    assert len(inputs.y_validation) == 15
+    assert len(inputs.y_train) == 69
+    assert len(inputs.y_validation) == 14
     assert len(inputs.y_test) == 15
 
 
@@ -121,7 +121,7 @@ def test_prepare_model_inputs_does_not_scale_target():
 
     expected_target = (
         df["target"]
-        .iloc[:70]
+        .iloc[:69]
         .reset_index(drop=True)
     )
 

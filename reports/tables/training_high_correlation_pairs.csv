@@ -1,0 +1,16 @@
+asset,feature_1,feature_2,correlation,absolute_correlation
+BTC,volume_change,quote_volume_change,0.9971525475768314,0.9971525475768314
+BTC,volume_change,trade_count_change,0.953799008321118,0.953799008321118
+BTC,quote_volume_change,trade_count_change,0.9505013507445781,0.9505013507445781
+ETH,volume_change,quote_volume_change,0.9949369816712218,0.9949369816712218
+ETH,volume_change,trade_count_change,0.9477220871919646,0.9477220871919646
+ETH,quote_volume_change,trade_count_change,0.9472704161317553,0.9472704161317553
+SOL,volume_change,quote_volume_change,0.9900673598107174,0.9900673598107174
+SOL,quote_volume_change,trade_count_change,0.9654724988590434,0.9654724988590434
+SOL,volume_change,trade_count_change,0.9641497870732564,0.9641497870732564
+SOL,log_quote_volume,log_number_of_trades,0.9627261073891413,0.9627261073891413
+BNB,volume_change,quote_volume_change,0.9936728295671681,0.9936728295671681
+BNB,volume_change,trade_count_change,0.9462036315363563,0.9462036315363563
+BNB,quote_volume_change,trade_count_change,0.946085923479559,0.946085923479559
+BNB,log_volume,log_quote_volume,0.9177071906756082,0.9177071906756082
+BNB,log_quote_volume,log_number_of_trades,0.9111484105039046,0.9111484105039046

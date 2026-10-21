@@ -35,21 +35,19 @@ def make_dataset(
     )
 
 
-def test_chronological_split_sizes():
+def test_chronological_split_purges_boundary_rows():
     df = make_dataset(
         rows=100
     )
 
-    split = (
-        chronological_train_validation_test_split(
-            df,
-            train_fraction=0.70,
-            validation_fraction=0.15,
-        )
+    split = chronological_train_validation_test_split(
+        df,
+        train_fraction=0.70,
+        validation_fraction=0.15,
     )
 
-    assert len(split.train) == 70
-    assert len(split.validation) == 15
+    assert len(split.train) == 69
+    assert len(split.validation) == 14
     assert len(split.test) == 15
 
 
@@ -58,10 +56,8 @@ def test_chronological_split_preserves_order():
         rows=100
     )
 
-    split = (
-        chronological_train_validation_test_split(
-            df
-        )
+    split = chronological_train_validation_test_split(
+        df
     )
 
     assert (
@@ -80,10 +76,8 @@ def test_chronological_split_uses_oldest_data_for_training():
         rows=100
     )
 
-    split = (
-        chronological_train_validation_test_split(
-            df
-        )
+    split = chronological_train_validation_test_split(
+        df
     )
 
     assert (
@@ -102,10 +96,8 @@ def test_chronological_split_does_not_drop_rows():
         rows=100
     )
 
-    split = (
-        chronological_train_validation_test_split(
-            df
-        )
+    split = chronological_train_validation_test_split(
+        df
     )
 
     total_rows = (
@@ -114,7 +106,7 @@ def test_chronological_split_does_not_drop_rows():
         + len(split.test)
     )
 
-    assert total_rows == len(df)
+    assert total_rows == len(df) - 2  # accounting for the purged rows at the boundaries
 
 
 def test_chronological_split_rejects_unsorted_data():
@@ -322,19 +314,114 @@ def test_standardization_rejects_missing_feature_values():
         "feature",
     ] = np.nan
 
-    split = (
-        chronological_train_validation_test_split(
-            df
-        )
+    split = chronological_train_validation_test_split(
+        df
     )
 
     with pytest.raises(
         ValueError,
-        match="missing feature values",
+        match="contains missing values",
     ):
         standardize_feature_splits(
             split,
             feature_columns=[
                 "feature",
             ],
+        )
+
+def test_split_purges_one_row_at_each_boundary():
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range(
+                "2024-01-01",
+                periods=100,
+                freq="D",
+            ),
+            "feature": range(100),
+            "target": range(1, 101),
+        }
+    )
+
+    split = chronological_train_validation_test_split(
+        df,
+        train_fraction=0.70,
+        validation_fraction=0.15,
+        purge_rows=1,
+    )
+
+    assert len(split.train) == 69
+    assert len(split.validation) == 14
+    assert len(split.test) == 15
+
+
+def test_purged_rows_are_not_present_in_any_partition():
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range(
+                "2024-01-01",
+                periods=100,
+                freq="D",
+            ),
+            "feature": range(100),
+            "target": range(1, 101),
+        }
+    )
+
+    split = chronological_train_validation_test_split(
+        df,
+        train_fraction=0.70,
+        validation_fraction=0.15,
+        purge_rows=1,
+    )
+
+    all_split_timestamps = set(
+        pd.concat(
+            [
+                split.train["timestamp"],
+                split.validation["timestamp"],
+                split.test["timestamp"],
+            ]
+        )
+    )
+
+    first_purged_timestamp = df.loc[
+        69,
+        "timestamp",
+    ]
+
+    second_purged_timestamp = df.loc[
+        84,
+        "timestamp",
+    ]
+
+    assert (
+        first_purged_timestamp
+        not in all_split_timestamps
+    )
+
+    assert (
+        second_purged_timestamp
+        not in all_split_timestamps
+    )
+
+
+def test_split_rejects_negative_purge():
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range(
+                "2024-01-01",
+                periods=100,
+                freq="D",
+            ),
+            "feature": range(100),
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="purge_rows cannot be negative",
+    ):
+        chronological_train_validation_test_split(
+            df,
+            purge_rows=-1,
         )

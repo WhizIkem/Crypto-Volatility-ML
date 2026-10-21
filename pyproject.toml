@@ -22,6 +22,7 @@ dependencies = [
   "scipy",
   "statsmodels",
   "scikit-learn",
+  "arch",
 ]
 
 # Optional dependencies (extras) can be specified here if needed

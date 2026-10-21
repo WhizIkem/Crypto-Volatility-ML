@@ -2,16 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 
 @dataclass(frozen=True)
 class TimeSeriesSplit:
-    """
-    Container for chronological train, validation, and test datasets.
-    """
-
     train: pd.DataFrame
     validation: pd.DataFrame
     test: pd.DataFrame
@@ -19,13 +16,6 @@ class TimeSeriesSplit:
 
 @dataclass(frozen=True)
 class ScaledTimeSeriesSplit:
-    """
-    Container for scaled train, validation, and test datasets.
-
-    The fitted scaler is retained so it can later be reused
-    for inference on unseen data.
-    """
-
     train: pd.DataFrame
     validation: pd.DataFrame
     test: pd.DataFrame
@@ -36,53 +26,57 @@ def chronological_train_validation_test_split(
     df: pd.DataFrame,
     train_fraction: float = 0.70,
     validation_fraction: float = 0.15,
+    purge_rows: int = 1,
 ) -> TimeSeriesSplit:
     """
-    Split a time-series DataFrame chronologically.
+    Split a supervised time-series dataset chronologically.
 
-    The remaining fraction after train and validation is assigned
-    to the test set.
+    Rows are never shuffled.
+
+    A purge is applied at the train/validation and
+    validation/test boundaries to prevent forward targets from
+    crossing into the next evaluation period.
+
+    For the project's one-day-ahead target:
+
+        features at t -> target at t + 1
+
+    purge_rows=1 ensures that the final training target does not
+    belong to the validation period, and the final validation
+    target does not belong to the test period.
 
     Parameters
     ----------
     df:
-        Chronologically ordered model-ready dataset.
+        Model-ready supervised dataset. Must contain ``timestamp``
+        and already be sorted chronologically.
 
     train_fraction:
-        Fraction of observations assigned to training.
+        Fraction of rows assigned to the initial training region
+        before purging.
 
     validation_fraction:
-        Fraction of observations assigned to validation.
+        Fraction of rows assigned to the validation region before
+        purging.
+
+    purge_rows:
+        Number of supervised rows removed immediately before each
+        split boundary. For a one-step-ahead forecast horizon this
+        should be 1.
 
     Returns
     -------
     TimeSeriesSplit
-        Chronological train, validation, and test partitions.
-
-    Raises
-    ------
-    ValueError
-        If the dataset is empty, timestamps are missing or unsorted,
-        split fractions are invalid, or any partition would be empty.
+        Purged train, validation, and test DataFrames.
     """
     if df.empty:
         raise ValueError(
-            "Cannot split an empty dataset"
+            "Cannot split an empty DataFrame"
         )
 
     if "timestamp" not in df.columns:
         raise ValueError(
-            "timestamp column is required"
-        )
-
-    if df["timestamp"].isna().any():
-        raise ValueError(
-            "timestamp column cannot contain missing values"
-        )
-
-    if not df["timestamp"].is_monotonic_increasing:
-        raise ValueError(
-            "Dataset must be sorted chronologically"
+            "DataFrame must contain a timestamp column"
         )
 
     if not 0 < train_fraction < 1:
@@ -105,6 +99,16 @@ def chronological_train_validation_test_split(
             "must be less than 1"
         )
 
+    if purge_rows < 0:
+        raise ValueError(
+            "purge_rows cannot be negative"
+        )
+
+    if not df["timestamp"].is_monotonic_increasing:
+        raise ValueError(
+            "DataFrame must be sorted chronologically"
+        )
+
     n_rows = len(df)
 
     train_end = int(
@@ -119,24 +123,37 @@ def chronological_train_validation_test_split(
         )
     )
 
-    if (
-        train_end == 0
-        or validation_end <= train_end
-        or validation_end >= n_rows
-    ):
+    train_stop = (
+        train_end
+        - purge_rows
+    )
+
+    validation_stop = (
+        validation_end
+        - purge_rows
+    )
+
+    if train_stop <= 0:
         raise ValueError(
-            "Split fractions produce an empty partition"
+            "purge_rows leaves no training observations"
+        )
+
+    if validation_stop <= train_end:
+        raise ValueError(
+            "purge_rows leaves no validation observations"
         )
 
     train = (
-        df.iloc[:train_end]
+        df.iloc[
+            :train_stop
+        ]
         .copy()
         .reset_index(drop=True)
     )
 
     validation = (
         df.iloc[
-            train_end:validation_end
+            train_end:validation_stop
         ]
         .copy()
         .reset_index(drop=True)
@@ -150,6 +167,15 @@ def chronological_train_validation_test_split(
         .reset_index(drop=True)
     )
 
+    if (
+        train.empty
+        or validation.empty
+        or test.empty
+    ):
+        raise ValueError(
+            "Split produced an empty partition"
+        )
+
     return TimeSeriesSplit(
         train=train,
         validation=validation,
@@ -162,63 +188,51 @@ def standardize_feature_splits(
     feature_columns: list[str],
 ) -> ScaledTimeSeriesSplit:
     """
-    Standardize predictor columns using training data only.
+    Standardize features using statistics learned from training
+    data only.
 
-    The StandardScaler is fitted exclusively on the training set.
-    The fitted training statistics are then applied unchanged to
-    validation and test data.
-
-    Non-feature columns, including timestamp, symbol, and target,
-    are preserved without transformation.
-
-    Parameters
-    ----------
-    split:
-        Chronological train, validation, and test partitions.
-
-    feature_columns:
-        Predictor columns to standardize.
-
-    Returns
-    -------
-    ScaledTimeSeriesSplit
-        Scaled partitions together with the fitted StandardScaler.
-
-    Raises
-    ------
-    ValueError
-        If no features are supplied, required columns are missing,
-        or missing values exist in the selected features.
+    The scaler is fit exclusively on the training partition and
+    subsequently applied to validation and test data.
     """
     if not feature_columns:
         raise ValueError(
             "feature_columns cannot be empty"
         )
 
-    for partition_name, partition in (
+    for split_name, frame in (
         ("train", split.train),
         ("validation", split.validation),
         ("test", split.test),
     ):
         missing_columns = (
             set(feature_columns)
-            - set(partition.columns)
+            - set(frame.columns)
         )
 
         if missing_columns:
             raise ValueError(
-                f"{partition_name} is missing feature columns: "
+                f"{split_name} is missing feature columns: "
                 f"{sorted(missing_columns)}"
             )
 
-        if (
-            partition[feature_columns]
-            .isna()
-            .any()
-            .any()
-        ):
+        feature_data = frame[
+            feature_columns
+        ]
+
+        if feature_data.isna().any().any():
             raise ValueError(
-                f"{partition_name} contains missing feature values"
+                f"{split_name} feature data contains "
+                "missing values"
+            )
+
+        if not np.isfinite(
+            feature_data.to_numpy(
+                dtype=float
+            )
+        ).all():
+            raise ValueError(
+                f"{split_name} feature data contains "
+                "non-finite values"
             )
 
     scaler = StandardScaler()
@@ -227,22 +241,28 @@ def standardize_feature_splits(
     validation = split.validation.copy()
     test = split.test.copy()
 
-    train[feature_columns] = (
-        scaler.fit_transform(
-            train[feature_columns]
-        )
+    train[
+        feature_columns
+    ] = scaler.fit_transform(
+        train[
+            feature_columns
+        ]
     )
 
-    validation[feature_columns] = (
-        scaler.transform(
-            validation[feature_columns]
-        )
+    validation[
+        feature_columns
+    ] = scaler.transform(
+        validation[
+            feature_columns
+        ]
     )
 
-    test[feature_columns] = (
-        scaler.transform(
-            test[feature_columns]
-        )
+    test[
+        feature_columns
+    ] = scaler.transform(
+        test[
+            feature_columns
+        ]
     )
 
     return ScaledTimeSeriesSplit(
