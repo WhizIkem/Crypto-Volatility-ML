@@ -23,6 +23,7 @@ dependencies = [
   "statsmodels",
   "scikit-learn",
   "arch",
+  "torch",
 ]
 
 # Optional dependencies (extras) can be specified here if needed

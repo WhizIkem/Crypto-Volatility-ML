@@ -10,3 +10,4 @@ scipy
 statsmodels
 scikit-learn
 arch
+torch

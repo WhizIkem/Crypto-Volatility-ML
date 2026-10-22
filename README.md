@@ -9,12 +9,12 @@ This project aims to:
 - collect and validate cryptocurrency market data;
 - explore price, return, and volatility behaviour;
 - engineer useful volatility and market features;
-- compare statistical, econometric, ML, and deep-learning models;
+- compare statistical, econometric, machine-learning, and deep-learning models;
 - use leakage-safe time-series validation;
-- select the best forecasting model;
-- build a volatility-based portfolio strategy;
+- select the strongest forecasting models;
+- build a volatility-driven portfolio strategy;
 - backtest with realistic trading costs;
-- connect to live Binance data;
+- connect to live Binance market data;
 - run paper-trading simulations;
 - add testing, Docker, CI/CD, logging, and monitoring.
 
@@ -45,11 +45,11 @@ The main forecasting target is:
 
 Features available at day `t` are used to predict volatility at day `t + 1`.
 
-## Current Feature Set
+## Feature Set
 
-A broad set of 28 candidate features was created during research.
+A broad research pool of 28 candidate features was created.
 
-After a training-only feature audit, the main ML feature set was reduced to seven interpretable features:
+After a training-only feature audit, the main ML feature set was reduced to seven interpretable predictors:
 
 - current log Garman-Klass volatility;
 - 7-day average volatility;
@@ -59,32 +59,35 @@ After a training-only feature audit, the main ML feature set was reduced to seve
 - cross-asset mean log volatility;
 - downside return.
 
-The 28-feature set is still kept for research comparisons.
+The full 28-feature set is still kept for research comparisons.
 
 ## Leakage Prevention
 
 Time-series leakage is treated as a hard constraint.
 
-The pipeline currently uses:
+The modelling pipeline uses:
 
 - chronological train / validation / test splits;
-- no random shuffling;
+- no random shuffling of time-series partitions;
 - a one-row purge at split boundaries for the one-day-ahead target;
 - training-only feature scaling;
+- training-only target scaling for LSTM models;
 - expanding-window time-series cross-validation;
-- a one-row gap inside cross-validation folds;
-- features built only from information available at the forecast date;
+- one-row gaps inside time-series CV folds;
+- features built only from information available at forecast time;
 - an untouched final test set.
 
-The purge prevents the target at `t + 1` from crossing train, validation, or test boundaries.
+Purged rows are excluded as supervised targets when their `t + 1` label would cross a split boundary.
 
-The final test set will only be used after feature selection, model selection, and hyperparameter tuning are complete.
+Their observed market features may still be used as legitimate historical context for later sequence-model predictions.
 
-## Model Results So Far
+The final test set will only be used after model selection and tuning are complete.
+
+## Model Results
 
 ### Naive Baseline
 
-The 7-day rolling mean was the strongest naive volatility benchmark for all four assets.
+The 7-day rolling mean was the strongest naive benchmark.
 
 | Asset | Validation RMSE |
 | --- | ---: |
@@ -97,7 +100,7 @@ The 7-day rolling mean was the strongest naive volatility benchmark for all four
 
 HAR-GK uses current, 7-day, and 30-day log Garman-Klass volatility.
 
-It beat the 7-day rolling baseline for all four assets.
+It beat the naive baseline for all four assets.
 
 | Asset | HAR-GK RMSE |
 | --- | ---: |
@@ -106,11 +109,11 @@ It beat the 7-day rolling baseline for all four assets.
 | SOL | 0.3968 |
 | BNB | 0.4538 |
 
-The 7-day volatility component had the largest HAR coefficient for every asset.
+The 7-day volatility component received the largest HAR coefficient across all assets.
 
 ### EGARCH
 
-An EGARCH(1,1,1) model with Student-t errors was evaluated using expanding-window forecasts.
+An EGARCH(1,1,1) model with Student-t innovations was evaluated using expanding-window forecasts.
 
 | Asset | EGARCH RMSE |
 | --- | ---: |
@@ -119,15 +122,15 @@ An EGARCH(1,1,1) model with Student-t errors was evaluated using expanding-windo
 | SOL | 0.4859 |
 | BNB | 0.5656 |
 
-EGARCH underperformed both HAR-GK and the 7-day baseline for this forecasting target.
+EGARCH underperformed both HAR-GK and the 7-day rolling benchmark.
 
-This suggests that range-based volatility persistence is more useful here than return-only conditional variance modelling.
+For this target, range-based volatility persistence appears more useful than return-only conditional variance dynamics.
 
 ### Ridge Regression
 
-Ridge regression was trained using the compact seven-feature set.
+Ridge regression used the compact seven-feature set.
 
-The regularization parameter was selected using training-only expanding-window cross-validation.
+The regularization parameter was selected with training-only time-series cross-validation.
 
 | Asset | Best Alpha | Validation RMSE |
 | --- | ---: | ---: |
@@ -136,11 +139,11 @@ The regularization parameter was selected using training-only expanding-window c
 | SOL | 0.001 | 0.3941 |
 | BNB | 100 | 0.4512 |
 
-Ridge slightly improved on HAR-GK while keeping the model interpretable.
+Ridge produced modest improvements over HAR-GK while remaining interpretable.
 
 ### Lasso Regression
 
-Lasso was tested using the same seven-feature set and the same leakage-safe validation process.
+Lasso used the same seven-feature set and validation protocol.
 
 | Asset | Validation RMSE |
 | --- | ---: |
@@ -149,7 +152,7 @@ Lasso was tested using the same seven-feature set and the same leakage-safe vali
 | SOL | 0.3943 |
 | BNB | 0.4497 |
 
-Ridge and Lasso performed very similarly.
+Ridge and Lasso performed similarly.
 
 Lasso removed only one feature completely: BTC log volume.
 
@@ -157,7 +160,7 @@ The 7-day volatility feature remained the strongest standardized coefficient acr
 
 ### Nonlinear ML
 
-Random Forest and Gradient Boosting were tested using the same compact seven-feature set and training-only time-series hyperparameter tuning.
+Random Forest and Gradient Boosting were evaluated using the compact seven-feature set and training-only time-series hyperparameter tuning.
 
 | Asset | Ridge | Lasso | Random Forest | Gradient Boosting |
 | --- | ---: | ---: | ---: | ---: |
@@ -166,40 +169,65 @@ Random Forest and Gradient Boosting were tested using the same compact seven-fea
 | SOL | **0.3941** | 0.3943 | 0.3976 | 0.3942 |
 | BNB | 0.4512 | **0.4497** | 0.4630 | 0.4646 |
 
-Nonlinear models did not consistently outperform the simpler regularized linear models.
+Nonlinear tree models did not consistently outperform the simpler regularized linear models.
 
-Random Forest performed best for BTC, while Lasso remained best for ETH and BNB and Ridge remained best for SOL.
+Random Forest performed best for BTC, while Ridge and Lasso remained stronger for the other assets.
 
-The 7-day volatility feature remained the most important predictor for BTC, ETH, and SOL.
+### LSTM
 
-For BNB, log volume and 7-day volatility were the dominant tree-model features.
+The first LSTM experiment was followed by a training audit to make the neural-network comparison more robust.
 
-## Current Findings
+The revised LSTM pipeline added:
 
-So far:
+- training-only target standardization;
+- shuffled independent training sequences;
+- sequence-length tuning;
+- hidden-size tuning;
+- learning-rate tuning;
+- early stopping;
+- evaluation across three fixed random seeds.
 
-1. Volatility is strongly persistent.
-2. The 7-day volatility measure is the most consistent predictor.
-3. HAR-GK beats simple volatility baselines.
-4. EGARCH is weaker for the selected Garman-Klass target.
-5. Ridge and Lasso provide small improvements over HAR-GK.
-6. Nonlinear tree models do not consistently improve forecasting accuracy.
-7. Random Forest gives the best current BTC validation result.
-8. Simpler regularized linear models remain strongest for ETH, SOL, and BNB.
-9. A compact seven-feature set performs well without needing all 28 candidate features.
+The final test set remained untouched.
+
+| Asset | Sequence Length | Hidden Size | Mean RMSE | RMSE Std |
+| --- | ---: | ---: | ---: | ---: |
+| BTC | 30 | 16 | 0.4874 | 0.0037 |
+| ETH | 7 | 32 | **0.4335** | 0.0058 |
+| SOL | 7 | 32 | 0.3947 | 0.0013 |
+| BNB | 7 | 32 | 0.4685 | 0.0070 |
+
+The tuned LSTM materially improved ETH forecasting and became competitive with Random Forest for BTC.
+
+For SOL and BNB, simpler regularized linear models remained stronger.
 
 ## Current Model Leaders
 
 | Asset | Best Validation Model | RMSE |
 | --- | --- | ---: |
 | BTC | Random Forest | 0.4865 |
-| ETH | Lasso | 0.4468 |
+| ETH | LSTM | 0.4335 mean |
 | SOL | Ridge | 0.3941 |
 | BNB | Lasso | 0.4497 |
 
 These are validation results only.
 
 The final test set remains untouched.
+
+## Current Findings
+
+So far:
+
+1. Cryptocurrency volatility is strongly persistent.
+2. The 7-day volatility measure is the most consistent predictor.
+3. HAR-GK clearly improves on naive volatility baselines.
+4. EGARCH is weaker for the selected range-based target.
+5. Ridge and Lasso provide small but consistent improvements over HAR-GK.
+6. More features do not automatically improve forecasting performance.
+7. Nonlinear tree models help selectively rather than universally.
+8. LSTM performance is highly dependent on training design and optimization.
+9. The tuned LSTM is strongest for ETH and competitive for BTC.
+10. Simpler models remain stronger for SOL and BNB.
+11. The compact seven-feature set captures most of the useful signal while remaining interpretable.
 
 ## Project Status
 
@@ -222,13 +250,14 @@ Completed:
 - ✅ Lasso regression
 - ✅ Random Forest
 - ✅ Gradient Boosting
-- ✅ Training-only time-series hyperparameter tuning
+- ✅ LSTM sequence modelling
+- ✅ LSTM training audit
+- ✅ Training-only hyperparameter tuning
 
 Next:
 
-- 🔄 LSTM sequence modelling
-- ⬜ VAR / cross-asset volatility analysis
-- ⬜ Final validation comparison
+- 🔄 VAR / cross-asset volatility analysis
+- ⬜ Robust model comparison
 - ⬜ Final untouched test evaluation
 - ⬜ Portfolio allocation
 - ⬜ Backtesting
@@ -267,3 +296,6 @@ scripts/
 tests/
 reports/
 notebooks/
+```
+
+Research notebooks are kept as experiment records, while reusable and tested logic is moved into `src/`.
