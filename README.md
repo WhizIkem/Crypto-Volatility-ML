@@ -69,7 +69,7 @@ The modelling pipeline uses:
 
 - chronological train / validation / test splits;
 - no random shuffling of time-series partitions;
-- a one-row purge at split boundaries for the one-day-ahead target;
+- one-row purges at boundaries for the one-day-ahead target;
 - training-only feature scaling;
 - training-only target scaling for LSTM models;
 - expanding-window time-series cross-validation;
@@ -79,9 +79,9 @@ The modelling pipeline uses:
 
 Purged rows are excluded as supervised targets when their `t + 1` label would cross a split boundary.
 
-Their observed market features may still be used as legitimate historical context for later sequence-model predictions.
+Their observed market features may still be used as valid historical context for later forecasts.
 
-The final test set will only be used after model selection and tuning are complete.
+The final test set will only be used after model selection is complete.
 
 ## Model Results
 
@@ -171,11 +171,11 @@ Random Forest and Gradient Boosting were evaluated using the compact seven-featu
 
 Nonlinear tree models did not consistently outperform the simpler regularized linear models.
 
-Random Forest performed best for BTC, while Ridge and Lasso remained stronger for the other assets.
+Random Forest improved BTC forecasting, while Ridge and Lasso remained stronger for the other assets.
 
 ### LSTM
 
-The first LSTM experiment was followed by a training audit to make the neural-network comparison more robust.
+The initial LSTM experiment was followed by a training audit to improve the fairness of the neural-network comparison.
 
 The revised LSTM pipeline added:
 
@@ -187,8 +187,6 @@ The revised LSTM pipeline added:
 - early stopping;
 - evaluation across three fixed random seeds.
 
-The final test set remained untouched.
-
 | Asset | Sequence Length | Hidden Size | Mean RMSE | RMSE Std |
 | --- | ---: | ---: | ---: | ---: |
 | BTC | 30 | 16 | 0.4874 | 0.0037 |
@@ -196,17 +194,44 @@ The final test set remained untouched.
 | SOL | 7 | 32 | 0.3947 | 0.0013 |
 | BNB | 7 | 32 | 0.4685 | 0.0070 |
 
-The tuned LSTM materially improved ETH forecasting and became competitive with Random Forest for BTC.
+The tuned LSTM produced the strongest ETH result and became competitive with Random Forest for BTC.
 
-For SOL and BNB, simpler regularized linear models remained stronger.
+For SOL and BNB, simpler models remained stronger.
+
+### VAR and Cross-Asset Volatility
+
+A Vector Autoregression model was used to test whether volatility in BTC, ETH, SOL, and BNB contains useful lagged information for forecasting the other assets.
+
+The lag order was selected using AIC on the outer training period only.
+
+A 7-day lag structure was selected.
+
+| Asset | VAR RMSE |
+| --- | ---: |
+| BTC | **0.4612** |
+| ETH | 0.4444 |
+| SOL | **0.3864** |
+| BNB | 0.4507 |
+
+VAR produced the strongest validation result so far for BTC and SOL and remained competitive for ETH and BNB.
+
+Training-period Granger-causality tests showed particularly strong predictive relationships from BTC volatility to:
+
+- ETH volatility;
+- SOL volatility;
+- BNB volatility.
+
+These results suggest that cross-asset volatility spillovers contain useful forecasting information beyond single-asset features.
+
+Granger-causality results are interpreted as predictive relationships rather than proof of economic causation.
 
 ## Current Model Leaders
 
 | Asset | Best Validation Model | RMSE |
 | --- | --- | ---: |
-| BTC | Random Forest | 0.4865 |
+| BTC | VAR | 0.4612 |
 | ETH | LSTM | 0.4335 mean |
-| SOL | Ridge | 0.3941 |
+| SOL | VAR | 0.3864 |
 | BNB | Lasso | 0.4497 |
 
 These are validation results only.
@@ -218,20 +243,21 @@ The final test set remains untouched.
 So far:
 
 1. Cryptocurrency volatility is strongly persistent.
-2. The 7-day volatility measure is the most consistent predictor.
+2. The 7-day volatility horizon is the most consistent signal across model families.
 3. HAR-GK clearly improves on naive volatility baselines.
 4. EGARCH is weaker for the selected range-based target.
-5. Ridge and Lasso provide small but consistent improvements over HAR-GK.
-6. More features do not automatically improve forecasting performance.
-7. Nonlinear tree models help selectively rather than universally.
-8. LSTM performance is highly dependent on training design and optimization.
-9. The tuned LSTM is strongest for ETH and competitive for BTC.
-10. Simpler models remain stronger for SOL and BNB.
-11. The compact seven-feature set captures most of the useful signal while remaining interpretable.
+5. Ridge and Lasso provide modest improvements while remaining interpretable.
+6. More features do not automatically improve out-of-sample forecasting.
+7. Tree models help selectively rather than universally.
+8. LSTM performance is sensitive to target scaling and optimization choices.
+9. LSTM provides the strongest current ETH forecast.
+10. Cross-asset volatility information materially improves BTC and SOL forecasts through VAR.
+11. BTC appears to be an important volatility transmitter within the four-asset system.
+12. No single model dominates every asset.
 
 ## Project Status
 
-**Current phase: Phase 6 — Model Research**
+**Current phase: Phase 7 — Robust Model Validation and Selection**
 
 Completed:
 
@@ -252,12 +278,15 @@ Completed:
 - ✅ Gradient Boosting
 - ✅ LSTM sequence modelling
 - ✅ LSTM training audit
+- ✅ VAR / cross-asset volatility analysis
 - ✅ Training-only hyperparameter tuning
+- ✅ Initial validation comparison
 
 Next:
 
-- 🔄 VAR / cross-asset volatility analysis
-- ⬜ Robust model comparison
+- 🔄 Robust walk-forward model comparison
+- ⬜ Multiple-testing correction for spillover analysis
+- ⬜ Final model selection
 - ⬜ Final untouched test evaluation
 - ⬜ Portfolio allocation
 - ⬜ Backtesting
@@ -267,7 +296,7 @@ Next:
 
 ## Model Families
 
-Current and planned models include:
+Models evaluated so far include:
 
 - naive volatility baselines;
 - HAR-GK;
