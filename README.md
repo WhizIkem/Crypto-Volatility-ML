@@ -1,19 +1,20 @@
 # Crypto Volatility Forecasting & Paper Trading System
 
-An end-to-end quantitative finance and machine learning project for forecasting cryptocurrency volatility and using those forecasts for portfolio allocation, backtesting, and live paper trading.
+An end-to-end quantitative finance and machine learning project for forecasting cryptocurrency volatility and using those forecasts for portfolio allocation, risk management, backtesting, and live paper trading.
 
 ## Project Goals
 
 This project aims to:
 
 - collect and validate cryptocurrency market data;
-- explore price, return, and volatility behaviour;
-- engineer useful volatility and market features;
-- compare statistical, econometric, machine-learning, and deep-learning models;
+- explore return and volatility behaviour;
+- engineer interpretable volatility features;
+- compare econometric, machine-learning, and deep-learning models;
 - use leakage-safe time-series validation;
-- select the strongest forecasting models;
-- build a volatility-driven portfolio strategy;
-- backtest with realistic trading costs;
+- select the strongest model for each asset;
+- convert volatility forecasts into portfolio weights;
+- control portfolio risk and concentration;
+- backtest with realistic trading costs and execution rules;
 - connect to live Binance market data;
 - run paper-trading simulations;
 - add testing, Docker, CI/CD, logging, and monitoring.
@@ -47,7 +48,7 @@ Features available at day `t` are used to predict volatility at day `t + 1`.
 
 ## Feature Set
 
-A broad research pool of 28 candidate features was created.
+A research pool of 28 candidate features was created.
 
 After a training-only feature audit, the main ML feature set was reduced to seven interpretable predictors:
 
@@ -59,7 +60,7 @@ After a training-only feature audit, the main ML feature set was reduced to seve
 - cross-asset mean log volatility;
 - downside return.
 
-The full 28-feature set is still kept for research comparisons.
+The full feature set is retained for research comparisons.
 
 ## Leakage Prevention
 
@@ -69,21 +70,21 @@ The modelling pipeline uses:
 
 - chronological train / validation / test splits;
 - no random shuffling of time-series partitions;
-- one-row purges at boundaries for the one-day-ahead target;
+- one-row purges at split boundaries;
 - training-only feature scaling;
-- training-only target scaling for LSTM models;
-- expanding-window time-series cross-validation;
-- one-row gaps inside time-series CV folds;
-- features built only from information available at forecast time;
-- an untouched final test set.
+- training-only LSTM target scaling;
+- expanding-window validation;
+- features available only at forecast time;
+- out-of-sample development forecasts for portfolio-rule research;
+- a separate final test period.
 
-Purged rows are excluded as supervised targets when their `t + 1` label would cross a split boundary.
+Purged rows are excluded as supervised targets when their `t + 1` label crosses a split boundary.
 
-Their observed market features may still be used as valid historical context for later forecasts.
+Observed information from those rows may still be used as legitimate historical context for later forecasts.
 
-The final test set will only be used after model selection is complete.
+LSTM training sequences may be shuffled during optimization because chronology is preserved inside every sequence.
 
-## Model Results
+## Model Research
 
 ### Naive Baseline
 
@@ -100,8 +101,6 @@ The 7-day rolling mean was the strongest naive benchmark.
 
 HAR-GK uses current, 7-day, and 30-day log Garman-Klass volatility.
 
-It beat the naive baseline for all four assets.
-
 | Asset | HAR-GK RMSE |
 | --- | ---: |
 | BTC | 0.4904 |
@@ -109,11 +108,13 @@ It beat the naive baseline for all four assets.
 | SOL | 0.3968 |
 | BNB | 0.4538 |
 
-The 7-day volatility component received the largest HAR coefficient across all assets.
+HAR-GK improved on the naive benchmark for every asset.
+
+The 7-day volatility component was the strongest HAR coefficient across all four assets.
 
 ### EGARCH
 
-An EGARCH(1,1,1) model with Student-t innovations was evaluated using expanding-window forecasts.
+An EGARCH(1,1,1) model with Student-t innovations was evaluated using expanding forecasts.
 
 | Asset | EGARCH RMSE |
 | --- | ---: |
@@ -122,89 +123,64 @@ An EGARCH(1,1,1) model with Student-t innovations was evaluated using expanding-
 | SOL | 0.4859 |
 | BNB | 0.5656 |
 
-EGARCH underperformed both HAR-GK and the 7-day rolling benchmark.
+EGARCH underperformed the stronger range-based volatility models.
 
-For this target, range-based volatility persistence appears more useful than return-only conditional variance dynamics.
+### Ridge and Lasso
 
-### Ridge Regression
+Regularized linear models used the compact seven-feature set with training-only scaling.
 
-Ridge regression used the compact seven-feature set.
-
-The regularization parameter was selected with training-only time-series cross-validation.
-
-| Asset | Best Alpha | Validation RMSE |
+| Asset | Ridge RMSE | Lasso RMSE |
 | --- | ---: | ---: |
-| BTC | 100 | 0.4886 |
-| ETH | 10 | 0.4470 |
-| SOL | 0.001 | 0.3941 |
-| BNB | 100 | 0.4512 |
+| BTC | 0.4886 | 0.4899 |
+| ETH | 0.4470 | 0.4468 |
+| SOL | 0.3941 | 0.3943 |
+| BNB | 0.4512 | 0.4497 |
 
-Ridge produced modest improvements over HAR-GK while remaining interpretable.
+Ridge and Lasso were strong and stable benchmarks.
 
-### Lasso Regression
+### Nonlinear Tree Models
 
-Lasso used the same seven-feature set and validation protocol.
+Random Forest and Gradient Boosting were evaluated using training-only time-series hyperparameter tuning.
 
-| Asset | Validation RMSE |
-| --- | ---: |
-| BTC | 0.4899 |
-| ETH | 0.4468 |
-| SOL | 0.3943 |
-| BNB | 0.4497 |
+| Asset | Random Forest | Gradient Boosting |
+| --- | ---: | ---: |
+| BTC | 0.4865 | 0.4974 |
+| ETH | 0.4656 | 0.4499 |
+| SOL | 0.3976 | 0.3942 |
+| BNB | 0.4630 | 0.4646 |
 
-Ridge and Lasso performed similarly.
-
-Lasso removed only one feature completely: BTC log volume.
-
-The 7-day volatility feature remained the strongest standardized coefficient across all assets.
-
-### Nonlinear ML
-
-Random Forest and Gradient Boosting were evaluated using the compact seven-feature set and training-only time-series hyperparameter tuning.
-
-| Asset | Ridge | Lasso | Random Forest | Gradient Boosting |
-| --- | ---: | ---: | ---: | ---: |
-| BTC | 0.4886 | 0.4899 | **0.4865** | 0.4974 |
-| ETH | 0.4470 | **0.4468** | 0.4656 | 0.4499 |
-| SOL | **0.3941** | 0.3943 | 0.3976 | 0.3942 |
-| BNB | 0.4512 | **0.4497** | 0.4630 | 0.4646 |
-
-Nonlinear tree models did not consistently outperform the simpler regularized linear models.
-
-Random Forest improved BTC forecasting, while Ridge and Lasso remained stronger for the other assets.
+Tree models did not consistently outperform the simpler regularized models.
 
 ### LSTM
 
-The initial LSTM experiment was followed by a training audit to improve the fairness of the neural-network comparison.
+The LSTM pipeline was improved with:
 
-The revised LSTM pipeline added:
-
-- training-only target standardization;
-- shuffled independent training sequences;
+- training-only feature scaling;
+- training-only target scaling;
 - sequence-length tuning;
 - hidden-size tuning;
 - learning-rate tuning;
 - early stopping;
 - evaluation across three fixed random seeds.
 
-| Asset | Sequence Length | Hidden Size | Mean RMSE | RMSE Std |
-| --- | ---: | ---: | ---: | ---: |
-| BTC | 30 | 16 | 0.4874 | 0.0037 |
-| ETH | 7 | 32 | **0.4335** | 0.0058 |
-| SOL | 7 | 32 | 0.3947 | 0.0013 |
-| BNB | 7 | 32 | 0.4685 | 0.0070 |
+Initial tuned results:
 
-The tuned LSTM produced the strongest ETH result and became competitive with Random Forest for BTC.
+| Asset | Sequence Length | Hidden Size | Mean RMSE |
+| --- | ---: | ---: | ---: |
+| BTC | 30 | 16 | 0.4874 |
+| ETH | 7 | 32 | **0.4335** |
+| SOL | 7 | 32 | 0.3947 |
+| BNB | 7 | 32 | 0.4685 |
 
-For SOL and BNB, simpler models remained stronger.
+ETH showed the clearest benefit from sequence modelling.
 
 ### VAR and Cross-Asset Volatility
 
-A Vector Autoregression model was used to test whether volatility in BTC, ETH, SOL, and BNB contains useful lagged information for forecasting the other assets.
+A Vector Autoregression model was used to model BTC, ETH, SOL, and BNB volatility jointly.
 
-The lag order was selected using AIC on the outer training period only.
+A 7-day lag structure was selected using training-period information only.
 
-A 7-day lag structure was selected.
+Initial validation results:
 
 | Asset | VAR RMSE |
 | --- | ---: |
@@ -213,51 +189,230 @@ A 7-day lag structure was selected.
 | SOL | **0.3864** |
 | BNB | 0.4507 |
 
-VAR produced the strongest validation result so far for BTC and SOL and remained competitive for ETH and BNB.
+VAR produced the strongest initial results for BTC and SOL.
 
-Training-period Granger-causality tests showed particularly strong predictive relationships from BTC volatility to:
+Training-period Granger-causality tests also showed strong predictive relationships from BTC volatility to ETH, SOL, and BNB volatility.
 
-- ETH volatility;
-- SOL volatility;
-- BNB volatility.
+These results are interpreted as predictive relationships rather than proof of economic causation.
 
-These results suggest that cross-asset volatility spillovers contain useful forecasting information beyond single-asset features.
+## Robust Model Validation
 
-Granger-causality results are interpreted as predictive relationships rather than proof of economic causation.
+Final model selection used four expanding historical validation windows.
 
-## Current Model Leaders
+Validation design:
 
-| Asset | Best Validation Model | RMSE |
+- Initial training window: 1,200 observations
+- Validation window: 120 observations
+- Step size: 120 observations
+- Boundary purge: 1 observation
+- Validation folds: 4
+- Total robust validation observations: 480 per asset
+- Final test start: 2025-11-28
+
+Hyperparameters selected during model research were frozen before robust validation.
+
+### Robust Results
+
+| Asset | Selected Candidate | Robust Mean RMSE |
 | --- | --- | ---: |
-| BTC | VAR | 0.4612 |
-| ETH | LSTM | 0.4335 mean |
-| SOL | VAR | 0.3864 |
-| BNB | Lasso | 0.4497 |
+| BTC | VAR | **0.4471** |
+| ETH | LSTM | **0.4231** |
+| SOL | VAR | **0.3889** |
+| BNB | Ridge | **0.4482** |
 
-These are validation results only.
+## Selected Forecast Models
 
-The final test set remains untouched.
+The final champion models were:
+
+| Asset | Selected Model | Frozen Configuration |
+| --- | --- | --- |
+| BTC | **VAR** | lag=7 |
+| ETH | **LSTM** | seq=7, hidden=32, lr=0.0005 |
+| SOL | **VAR** | lag=7 |
+| BNB | **Ridge** | alpha=100 |
+
+VAR is trained jointly on all four volatility series, while its BTC and SOL equations are used for the final portfolio forecasts.
+
+ETH uses the specialist LSTM forecast.
+
+BNB uses Ridge because the simpler regularized model remained strongest.
+
+## Final Forecast Test
+
+The frozen champion models were evaluated on the final test period.
+
+Test period:
+
+- Start: 2025-11-28
+- End: 2026-10-05
+- Observations: 312 per asset
+
+| Asset | Model | MAE | RMSE |
+| --- | --- | ---: | ---: |
+| BTC | VAR | 0.3506 | **0.4483** |
+| ETH | LSTM | 0.3566 | **0.4597** |
+| SOL | VAR | 0.3402 | **0.4413** |
+| BNB | Ridge | 0.3369 | **0.4250** |
+
+BTC performance remained close to robust-validation performance.
+
+BNB improved during the final period.
+
+ETH and SOL showed weaker final-period performance, highlighting regime sensitivity.
+
+Forecast-model choices and hyperparameters were not changed after observing these results.
+
+## Portfolio Construction
+
+Forecasts are converted into portfolio allocations through the following pipeline:
+
+```text
+next-day log-volatility forecasts
+        ↓
+convert to volatility
+        ↓
+inverse-volatility allocation
+        ↓
+40% maximum asset weight
+        ↓
+30-day historical return correlation
+        ↓
+forecast covariance matrix
+        ↓
+portfolio volatility estimate
+        ↓
+20% annual volatility target
+        ↓
+crypto exposure + cash allocation
+        ↓
+execution threshold
+```
+
+The allocation is long-only and unleveraged.
+
+### Risk Controls
+
+The portfolio currently uses:
+
+- 40% maximum weight per crypto asset;
+- 20% annualized portfolio volatility target;
+- 30-day return-correlation lookback;
+- maximum risky exposure of 100%;
+- remaining capital held in cash.
+
+## Portfolio-Rule Development
+
+Trading rules were evaluated using **480 out-of-sample development forecasts** from the same four expanding validation folds used during robust model evaluation.
+
+Forecast models remained frozen.
+
+The execution research tested only a small predefined grid:
+
+- rebalance every 1, 3, or 7 days;
+- minimum one-way turnover threshold of 0%, 2%, or 5%.
+
+No additional model tuning was performed.
+
+### Development Results
+
+The strongest practical comparison was between daily rebalancing with no threshold and daily rebalancing with a 5% minimum turnover threshold.
+
+| Rule | Sharpe | Max Drawdown | Avg. Daily Turnover | Transaction Cost | Rebalances |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Daily, 0% threshold | **0.8551** | **-19.81%** | 7.18% | 3.45% | 480 |
+| Daily, 5% threshold | 0.8545 | -20.09% | **6.15%** | **2.95%** | **293** |
+
+The 5% threshold preserved almost all risk-adjusted performance while substantially reducing trading activity.
+
+The development-selected execution rule was therefore frozen as:
+
+- evaluate signals daily;
+- rebalance only when proposed one-way turnover is at least 5%.
+
+No additional threshold search was performed after selection.
+
+## Backtesting
+
+The strategy backtest uses:
+
+- correct `t → t+1` forecast and return alignment;
+- simple returns for portfolio P&L;
+- natural weight drift between trades;
+- cash allocation;
+- 10 bps transaction costs;
+- 5% minimum turnover threshold;
+- no leverage.
+
+### Final Strategy Results
+
+| Metric | Result |
+| --- | ---: |
+| Total return | **0.74%** |
+| Annualized return | **0.87%** |
+| Annualized volatility | **23.07%** |
+| Sharpe ratio | **0.152** |
+| Maximum drawdown | **-25.01%** |
+| Average daily turnover | **7.38%** |
+| Total transaction cost | **2.29%** |
+| Average risky exposure | **53.39%** |
+| Average cash weight | **46.61%** |
+| Rebalances | **206** |
+
+The execution threshold reduced unnecessary trading while leaving risk-adjusted performance almost unchanged.
+
+### Baseline Comparison
+
+Before the development-selected execution threshold was applied, the fully daily version produced:
+
+| Metric | Daily Baseline | 5% Threshold |
+| --- | ---: | ---: |
+| Total return | 0.78% | 0.74% |
+| Annualized volatility | 23.20% | **23.07%** |
+| Sharpe ratio | **0.154** | 0.152 |
+| Max drawdown | -25.30% | **-25.01%** |
+| Avg. daily turnover | 8.34% | **7.38%** |
+| Transaction cost | 2.59% | **2.29%** |
+
+The 5% threshold reduced turnover and costs while preserving the overall risk profile.
+
+## Benchmark Comparison
+
+The original volatility strategy was also compared with simple crypto benchmarks over the same final period.
+
+| Strategy | Total Return | Annualized Volatility | Sharpe | Max Drawdown |
+| --- | ---: | ---: | ---: | ---: |
+| BTC Buy & Hold | -5.73% | 44.74% | 0.068 | -39.53% |
+| Equal Weight Buy & Hold | -10.00% | 49.76% | 0.000 | -46.92% |
+| Equal Weight Constant-Weight | -8.57% | 50.26% | 0.042 | -47.18% |
+| Volatility Strategy | **positive** | **~23%** | **~0.15** | **~ -25%** |
+
+The strategy produced modest absolute returns, but materially reduced volatility and drawdowns relative to fully invested crypto benchmarks.
+
+This is consistent with the project's objective of using volatility forecasting primarily for **risk-aware allocation**, rather than directional return prediction.
 
 ## Current Findings
 
-So far:
-
 1. Cryptocurrency volatility is strongly persistent.
-2. The 7-day volatility horizon is the most consistent signal across model families.
-3. HAR-GK clearly improves on naive volatility baselines.
-4. EGARCH is weaker for the selected range-based target.
-5. Ridge and Lasso provide modest improvements while remaining interpretable.
-6. More features do not automatically improve out-of-sample forecasting.
-7. Tree models help selectively rather than universally.
-8. LSTM performance is sensitive to target scaling and optimization choices.
-9. LSTM provides the strongest current ETH forecast.
-10. Cross-asset volatility information materially improves BTC and SOL forecasts through VAR.
-11. BTC appears to be an important volatility transmitter within the four-asset system.
-12. No single model dominates every asset.
+2. The 7-day horizon is the most consistent forecasting signal.
+3. HAR-GK provides a strong interpretable benchmark.
+4. EGARCH is weaker for the selected range-based volatility target.
+5. Compact feature sets perform as well as or better than larger feature sets.
+6. Ridge and Lasso are strong and stable ML baselines.
+7. Tree models add limited incremental value.
+8. ETH benefits from sequence modelling.
+9. Cross-asset volatility information materially improves BTC and SOL forecasting.
+10. BTC appears to be an important volatility transmitter in the multivariate system.
+11. Different assets benefit from different forecasting models.
+12. No single model family dominates every asset.
+13. Final-period forecast performance shows regime sensitivity.
+14. Volatility forecasts can be translated into materially lower portfolio risk.
+15. Lower trading frequency was not beneficial during development validation.
+16. A 5% turnover threshold reduced trading activity without materially reducing Sharpe.
+17. Portfolio risk management adds more value here than directional return prediction.
 
 ## Project Status
 
-**Current phase: Phase 7 — Robust Model Validation and Selection**
+**Current phase: Phase 9 — Backtesting & Reporting**
 
 Completed:
 
@@ -270,33 +425,53 @@ Completed:
 - ✅ Naive volatility baselines
 - ✅ HAR-GK
 - ✅ EGARCH
-- ✅ Training-only feature audit
-- ✅ Compact feature selection
+- ✅ Feature selection
 - ✅ Ridge regression
 - ✅ Lasso regression
 - ✅ Random Forest
 - ✅ Gradient Boosting
-- ✅ LSTM sequence modelling
-- ✅ LSTM training audit
+- ✅ LSTM modelling and training audit
 - ✅ VAR / cross-asset volatility analysis
 - ✅ Training-only hyperparameter tuning
-- ✅ Initial validation comparison
+- ✅ Robust expanding-window validation
+- ✅ Champion model selection
+- ✅ Final forecast evaluation
+- ✅ Portfolio allocation
+- ✅ Maximum-weight risk controls
+- ✅ Volatility targeting
+- ✅ Cash allocation
+- ✅ Forecast covariance estimation
+- ✅ Transaction-cost modelling
+- ✅ Development-period execution-rule validation
+- ✅ Weight-drift-aware backtesting
+- ✅ Benchmark comparison
+
+Current strategy:
+
+- BTC → VAR
+- ETH → LSTM
+- SOL → VAR
+- BNB → Ridge
+- 20% annual volatility target
+- 40% maximum asset weight
+- 30-day correlation lookback
+- 5% minimum turnover threshold
+- 10 bps transaction-cost assumption
+- no leverage
 
 Next:
 
-- 🔄 Robust walk-forward model comparison
-- ⬜ Multiple-testing correction for spillover analysis
-- ⬜ Final model selection
-- ⬜ Final untouched test evaluation
-- ⬜ Portfolio allocation
-- ⬜ Backtesting
+- 🔄 Advanced backtest metrics
+- 🔄 Backtest charts and reporting
+- ⬜ Production model training and persistence
 - ⬜ Live Binance inference
 - ⬜ Paper trading
-- ⬜ Deployment and monitoring
+- ⬜ Production hardening
+- ⬜ Docker and CI/CD
+- ⬜ Deployment
+- ⬜ Monitoring and observability
 
-## Model Families
-
-Models evaluated so far include:
+## Model Families Evaluated
 
 - naive volatility baselines;
 - HAR-GK;
@@ -306,7 +481,7 @@ Models evaluated so far include:
 - Random Forest;
 - Gradient Boosting;
 - LSTM;
-- VAR / cross-asset volatility analysis.
+- VAR / cross-asset volatility modelling.
 
 ## Repository Structure
 

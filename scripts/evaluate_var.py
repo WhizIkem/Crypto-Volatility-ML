@@ -4,9 +4,6 @@ from pathlib import Path
 
 import pandas as pd
 
-from crypto_volatility.data.preprocessing import (
-    chronological_train_validation_test_split,
-)
 from crypto_volatility.data.var_panel import (
     build_var_volatility_panel,
 )
