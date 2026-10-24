@@ -412,7 +412,7 @@ This is consistent with the project's objective of using volatility forecasting 
 
 ## Project Status
 
-**Current phase: Phase 9 — Backtesting & Reporting**
+**Current phase: Phase 10 — Production ML**
 
 Completed:
 
@@ -445,6 +445,15 @@ Completed:
 - ✅ Development-period execution-rule validation
 - ✅ Weight-drift-aware backtesting
 - ✅ Benchmark comparison
+- ✅ Advanced backtest metrics
+- ✅ Historical VaR and Expected Shortfall
+- ✅ Drawdown-duration analysis
+- ✅ Final benchmark comparison
+- ✅ Equity-curve reporting
+- ✅ Drawdown reporting
+- ✅ Dynamic exposure reporting
+- ✅ Turnover reporting
+- ✅ Portfolio-weight reporting
 
 Current strategy:
 
@@ -461,9 +470,10 @@ Current strategy:
 
 Next:
 
-- 🔄 Advanced backtest metrics
-- 🔄 Backtest charts and reporting
-- ⬜ Production model training and persistence
+Next:
+
+- 🔄 Production model training and persistence
+- ⬜ Production inference pipeline
 - ⬜ Live Binance inference
 - ⬜ Paper trading
 - ⬜ Production hardening

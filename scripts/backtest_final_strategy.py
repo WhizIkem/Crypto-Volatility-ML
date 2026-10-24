@@ -17,7 +17,6 @@ from crypto_volatility.portfolio.backtest import (
 )
 from crypto_volatility.utils.config import load_config
 
-
 ANNUALIZATION_FACTOR = 365
 
 # Portfolio settings frozen before the execution-rule experiment.
