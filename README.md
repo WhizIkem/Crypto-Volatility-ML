@@ -572,7 +572,212 @@ Portfolio outputs:
 
 SOL received the smallest risky allocation because it had the highest forecast volatility in the live run.
 
-The current live smoke test assumes an all-cash starting portfolio. Persistent portfolio state will replace this temporary assumption during the paper-trading phase.
+## Persistent Paper Portfolio
+
+The paper-trading system now maintains persistent portfolio state rather than assuming the account starts from cash on every run.
+
+The paper account was initialized with:
+
+```text id="kybfm7"
+Initial capital: $1,000,000
+```
+
+Persisted state includes:
+
+- cash balance;
+- BTC quantity;
+- ETH quantity;
+- SOL quantity;
+- BNB quantity;
+- latest observed prices;
+- portfolio equity;
+- last forecast timestamp;
+- last rebalance timestamp.
+
+Portfolio weights are calculated from current quantities and current market prices.
+
+This allows each new daily signal to be compared with the actual existing paper portfolio.
+
+### Position Sizing
+
+Target portfolio weights are converted into dollar position values:
+
+```text id="dyacdl"
+target value = portfolio equity × target weight
+```
+
+and then into asset quantities:
+
+```text id="21d9g2"
+target quantity = target value / execution price
+```
+
+For the first $1,000,000 paper portfolio allocation, the approximate target quantities were:
+
+| Asset | Quantity |
+| --- | ---: |
+| BTC | 2.2929 |
+| ETH | 61.7364 |
+| SOL | 1,013.9969 |
+| BNB | 237.1392 |
+
+## Paper Broker
+
+A paper broker now simulates long-only portfolio execution.
+
+The broker:
+
+- calculates required quantity changes;
+- processes sells before buys;
+- converts target weights into asset units;
+- deducts 10 bps transaction costs from traded notional;
+- prevents negative cash;
+- prevents negative asset quantities;
+- updates cash and holdings;
+- persists the updated portfolio state.
+
+### First Paper Rebalance
+
+The first simulated rebalance started from:
+
+```text id="pqokdi"
+Portfolio equity: $1,000,000
+Cash: $1,000,000
+```
+
+Executed trades:
+
+| Asset | Side | Notional | Transaction Cost |
+| --- | --- | ---: | ---: |
+| BTC | Buy | $185,466 | $185.47 |
+| ETH | Buy | $145,625 | $145.62 |
+| SOL | Buy | $103,813 | $103.81 |
+| BNB | Buy | $175,483 | $175.48 |
+
+Total transaction cost:
+
+```text id="cd5t5r"
+$610.39
+```
+
+Post-trade portfolio:
+
+```text id="g0iiqq"
+Equity: $999,389.61
+Cash:   $389,002.61
+```
+
+The difference between initial and ending equity is the simulated transaction cost.
+
+## Daily Paper-Trading Loop
+
+The project now includes a complete daily paper-trading workflow:
+
+```text id="vht6w7"
+new closed Binance candle
+        ↓
+live feature generation
+        ↓
+frozen production models
+        ↓
+next-day volatility forecasts
+        ↓
+target portfolio weights
+        ↓
+load current paper holdings
+        ↓
+compare current vs target
+        ↓
+calculate one-way turnover
+        ↓
+turnover < 5%
+     ↙          ↘
+   HOLD       REBALANCE
+                ↓
+        simulated execution
+                ↓
+        transaction costs
+                ↓
+       update portfolio state
+                ↓
+         persist and log
+```
+
+### Hold Decision
+
+After the first paper rebalance, the same live signal was evaluated against the persisted portfolio.
+
+Current risky weights:
+
+| Asset | Current Weight |
+| --- | ---: |
+| BTC | 18.56% |
+| ETH | 14.57% |
+| SOL | 10.39% |
+| BNB | 17.56% |
+
+New target weights were almost identical.
+
+Calculated one-way turnover:
+
+```text id="2k2lln"
+0.000373
+```
+
+Execution threshold:
+
+```text id="mzwoxe"
+0.050000
+```
+
+Result:
+
+```text id="lyvi1r"
+Should rebalance: False
+```
+
+No trades were executed.
+
+This demonstrates that the strategy does not continuously rebalance small differences and correctly applies the development-selected 5% turnover threshold.
+
+## Duplicate Execution Protection
+
+Each processed closed candle is recorded in persistent state.
+
+If the paper trader is run repeatedly before a new daily candle closes, the system detects that the forecast origin has already been processed and exits without trading again.
+
+Example:
+
+```text id="8nhagq"
+This forecast origin has already been processed.
+No duplicate paper trade will be executed.
+```
+
+This prevents accidental repeated execution of the same daily signal.
+
+## Paper-Trading Logs
+
+The runtime paper-trading system maintains:
+
+```text id="q5okaf"
+logs/paper_portfolio_state.json
+logs/paper_portfolio_history.csv
+logs/paper_trades.csv
+```
+
+These runtime files are excluded from version control.
+
+The logs are designed to provide an audit trail of:
+
+- forecasts;
+- current and target weights;
+- portfolio equity;
+- cash;
+- turnover;
+- rebalance decisions;
+- executed trades;
+- execution prices;
+- transaction costs.
 
 ## Current Findings
 
@@ -596,10 +801,15 @@ The current live smoke test assumes an all-cash starting portfolio. Persistent p
 18. Production models can be loaded and used without retraining.
 19. Research and live inference use the same feature-engineering definitions.
 20. Live Binance data can be converted directly into production forecasts and portfolio targets.
+21. Portfolio weights can be converted into capital-aware asset quantities.
+22. Persistent portfolio state allows genuine buy, sell, and hold decisions across days.
+23. Transaction costs reconcile directly with paper-account equity changes.
+24. Small portfolio changes are correctly suppressed by the execution threshold.
+25. Duplicate daily signals are blocked from repeated execution.
 
 ## Project Status
 
-**Current phase: Phase 11 — Live Binance Data**
+**Current phase: Phase 12 — Paper Trading**
 
 Completed:
 
@@ -650,6 +860,15 @@ Completed:
 - ✅ Live feature parity with research pipeline
 - ✅ Live production inference
 - ✅ Live forecast-to-portfolio decision pipeline
+- ✅ Persistent $1,000,000 paper portfolio state
+- ✅ Position sizing in asset units
+- ✅ Paper broker execution
+- ✅ Buy / sell / hold decision logic
+- ✅ Transaction-cost deduction
+- ✅ Daily paper-trading orchestration
+- ✅ Portfolio history logging
+- ✅ Trade history logging
+- ✅ Duplicate-candle execution protection
 
 Current production strategy:
 
@@ -662,18 +881,19 @@ Current production strategy:
 - 30-day correlation lookback
 - 5% minimum turnover threshold
 - 10 bps transaction-cost assumption
+- $1,000,000 paper starting capital
 - maximum risky exposure of 100%
 - long-only
 - no leverage
 
 Next:
 
-- 🔄 Portfolio-state persistence
-- ⬜ Paper broker
-- ⬜ Position sizing in asset units
-- ⬜ Buy / sell / hold execution decisions
-- ⬜ Paper trading loop
-- ⬜ Trade and portfolio logging
+- 🔄 Paper-trading reliability tests
+- ⬜ Failure-safe execution and rollback
+- ⬜ State corruption and recovery tests
+- ⬜ Trade-log reconciliation tests
+- ⬜ Portfolio-history consistency tests
+- ⬜ Production logging
 - ⬜ Production hardening
 - ⬜ Docker and CI/CD
 - ⬜ Deployment
