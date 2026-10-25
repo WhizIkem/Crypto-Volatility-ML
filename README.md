@@ -466,9 +466,9 @@ A separate inference process successfully reloads the saved artifacts and genera
 
 ### Production Forecast Smoke Test
 
-Latest historical forecast origin:
+Historical production smoke-test origin:
 
-```text
+```text id="mn3hyd"
 2026-10-05
 ```
 
@@ -481,29 +481,98 @@ Next-day log-volatility forecasts:
 | SOL | -3.8754 |
 | BNB | -4.0352 |
 
-### Production Portfolio Decision
+This verified that persisted models and preprocessing artifacts could be loaded and used in a separate inference process.
 
-The forecasts were passed through the same tested allocation and risk-control pipeline used during research.
+## Live Binance Pipeline
 
-Result:
+The production system now retrieves recent Binance Spot candles directly from the public API.
+
+The live data layer:
+
+- fetches recent 1-day candles;
+- removes the still-open daily candle;
+- validates timestamp ordering;
+- deduplicates candles;
+- requires BTC, ETH, SOL, and BNB to share the same latest closed candle.
+
+The first live ingestion run aligned all assets on:
+
+```text id="zl9cz1"
+2026-10-24 00:00:00+00:00
+```
+
+Only fully closed candles are allowed into production inference.
+
+### Live Feature Parity
+
+Live candles are passed through the **same feature-engineering functions used during model research**.
+
+The live system does not reimplement volatility or feature formulas separately.
+
+The pipeline is:
+
+```text id="nz6wpg"
+Binance closed candles
+        ↓
+research feature engineering
+        ↓
+7 production features
+        ↓
+VAR / LSTM / Ridge inputs
+```
+
+The latest live production feature rows were successfully generated for all four assets at:
+
+```text id="2pplwa"
+2026-10-24 00:00:00+00:00
+```
+
+The live feature layer also produces:
+
+- 7-row ETH LSTM feature history;
+- 30-row VAR volatility history;
+- 30-row simple-return history for portfolio covariance estimation.
+
+The unknown future target is deliberately not required during live inference.
+
+### Live Production Forecast
+
+Using live Binance data through the October 24 closed candle, the production models generated:
+
+| Asset | Live Log-Volatility Forecast |
+| --- | ---: |
+| BTC | -4.1750 |
+| ETH | -3.9332 |
+| SOL | -3.5947 |
+| BNB | -4.1197 |
+
+These forecasts were generated from saved production models without retraining.
+
+### Live Portfolio Decision
+
+The live forecasts were passed directly through the tested allocation and risk-control pipeline.
+
+Target portfolio:
 
 | Asset | Target Weight |
 | --- | ---: |
-| BTC | 18.32% |
-| ETH | 14.33% |
-| SOL | 13.77% |
-| BNB | 16.16% |
-| Cash | 37.42% |
+| BTC | 18.55% |
+| ETH | 14.56% |
+| SOL | 10.38% |
+| BNB | 17.55% |
+| Cash | 38.96% |
 
-Additional outputs:
+Portfolio outputs:
 
-- forecast portfolio volatility: 1.67% daily;
-- risky exposure: 62.58%;
-- cash weight: 37.42%;
-- turnover from an all-cash portfolio: 62.58%;
+- forecast portfolio volatility: 1.72% daily;
+- risky exposure: 61.04%;
+- cash allocation: 38.96%;
+- one-way turnover from an all-cash portfolio: 61.04%;
 - rebalance decision: yes.
 
-The production decision respects the 20% annual volatility target, concentration controls, maximum risky exposure, and 5% execution threshold.
+SOL received the smallest risky allocation because it had the highest forecast volatility in the live run.
+
+The current live smoke test assumes an all-cash starting portfolio. Persistent portfolio state will replace this temporary assumption during the paper-trading phase.
 
 ## Current Findings
 
@@ -525,7 +594,8 @@ The production decision respects the 20% annual volatility target, concentration
 16. Portfolio risk management adds more value here than directional return prediction.
 17. Long-only allocation is consistent with the information content of volatility forecasts.
 18. Production models can be loaded and used without retraining.
-19. The research pipeline now connects directly to executable portfolio targets.
+19. Research and live inference use the same feature-engineering definitions.
+20. Live Binance data can be converted directly into production forecasts and portfolio targets.
 
 ## Project Status
 
@@ -575,6 +645,11 @@ Completed:
 - ✅ Production model loading
 - ✅ Production inference smoke test
 - ✅ Forecast-to-portfolio decision pipeline
+- ✅ Live Binance closed-candle ingestion
+- ✅ Live feature generation
+- ✅ Live feature parity with research pipeline
+- ✅ Live production inference
+- ✅ Live forecast-to-portfolio decision pipeline
 
 Current production strategy:
 
@@ -593,12 +668,12 @@ Current production strategy:
 
 Next:
 
-- 🔄 Live Binance closed-candle ingestion
-- ⬜ Live feature generation
-- ⬜ Live production inference
-- ⬜ Portfolio-state persistence
+- 🔄 Portfolio-state persistence
 - ⬜ Paper broker
+- ⬜ Position sizing in asset units
+- ⬜ Buy / sell / hold execution decisions
 - ⬜ Paper trading loop
+- ⬜ Trade and portfolio logging
 - ⬜ Production hardening
 - ⬜ Docker and CI/CD
 - ⬜ Deployment
