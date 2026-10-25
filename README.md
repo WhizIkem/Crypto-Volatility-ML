@@ -1,6 +1,6 @@
 # Crypto Volatility Forecasting & Paper Trading System
 
-An end-to-end quantitative finance and machine learning project for forecasting cryptocurrency volatility and using those forecasts for portfolio allocation, risk management, backtesting, and live paper trading.
+An end-to-end quantitative finance and machine learning project for forecasting cryptocurrency volatility and using those forecasts for risk-aware portfolio allocation, backtesting, production inference, and live paper trading.
 
 ## Project Goals
 
@@ -15,6 +15,8 @@ This project aims to:
 - convert volatility forecasts into portfolio weights;
 - control portfolio risk and concentration;
 - backtest with realistic trading costs and execution rules;
+- retrain frozen model specifications for production;
+- generate production portfolio decisions without retraining;
 - connect to live Binance market data;
 - run paper-trading simulations;
 - add testing, Docker, CI/CD, logging, and monitoring.
@@ -193,7 +195,7 @@ VAR produced the strongest initial results for BTC and SOL.
 
 Training-period Granger-causality tests also showed strong predictive relationships from BTC volatility to ETH, SOL, and BNB volatility.
 
-These results are interpreted as predictive relationships rather than proof of economic causation.
+These are interpreted as predictive relationships rather than proof of economic causation.
 
 ## Robust Model Validation
 
@@ -222,16 +224,16 @@ Hyperparameters selected during model research were frozen before robust validat
 
 ## Selected Forecast Models
 
-The final champion models were:
+The final champion models are:
 
 | Asset | Selected Model | Frozen Configuration |
 | --- | --- | --- |
-| BTC | **VAR** | lag=7 |
-| ETH | **LSTM** | seq=7, hidden=32, lr=0.0005 |
-| SOL | **VAR** | lag=7 |
-| BNB | **Ridge** | alpha=100 |
+| BTC | **VAR** | lag = 7 |
+| ETH | **LSTM** | seq = 7, hidden = 32, lr = 0.0005 |
+| SOL | **VAR** | lag = 7 |
+| BNB | **Ridge** | alpha = 100 |
 
-VAR is trained jointly on all four volatility series, while its BTC and SOL equations are used for the final portfolio forecasts.
+VAR is trained jointly on all four volatility series, while its BTC and SOL equations are used for portfolio forecasts.
 
 ETH uses the specialist LSTM forecast.
 
@@ -239,7 +241,7 @@ BNB uses Ridge because the simpler regularized model remained strongest.
 
 ## Final Forecast Test
 
-The frozen champion models were evaluated on the final test period.
+The frozen champion models were evaluated once on the final test period.
 
 Test period:
 
@@ -254,17 +256,11 @@ Test period:
 | SOL | VAR | 0.3402 | **0.4413** |
 | BNB | Ridge | 0.3369 | **0.4250** |
 
-BTC performance remained close to robust-validation performance.
-
-BNB improved during the final period.
-
-ETH and SOL showed weaker final-period performance, highlighting regime sensitivity.
-
-Forecast-model choices and hyperparameters were not changed after observing these results.
+Forecast-model choices and hyperparameters were not changed after observing the final test.
 
 ## Portfolio Construction
 
-Forecasts are converted into portfolio allocations through the following pipeline:
+Forecasts are converted into allocations through:
 
 ```text
 next-day log-volatility forecasts
@@ -283,53 +279,112 @@ portfolio volatility estimate
         ↓
 20% annual volatility target
         ↓
-crypto exposure + cash allocation
+crypto exposure + cash
         ↓
 execution threshold
 ```
 
-The allocation is long-only and unleveraged.
+### Why the Strategy Is Long-Only
 
-### Risk Controls
+The forecasting models estimate **volatility**, not expected returns.
 
-The portfolio currently uses:
+They answer:
 
+> How risky is each asset likely to be tomorrow?
+
+They do not answer:
+
+> Will this asset increase or decrease in price tomorrow?
+
+For that reason, high forecast volatility is interpreted as a reason to **reduce position size**, not as evidence that an asset should be shorted.
+
+The portfolio therefore remains long-only and uses cash as the defensive allocation.
+
+A long/short strategy would require an additional expected-return or directional forecasting layer, together with different assumptions for borrowing, funding costs, liquidation risk, and execution.
+
+Keeping the strategy long-only therefore keeps the portfolio construction aligned with what the models actually predict.
+
+## Risk Controls
+
+The portfolio uses:
+
+- 20% annualized volatility target;
 - 40% maximum weight per crypto asset;
-- 20% annualized portfolio volatility target;
 - 30-day return-correlation lookback;
 - maximum risky exposure of 100%;
+- no leverage;
 - remaining capital held in cash.
+
+## Portfolio Execution
+
+Trading decisions are made by comparing the target portfolio with the current portfolio:
+
+```text
+trade weight = target weight - current weight
+```
+
+Therefore:
+
+- positive trade weight → buy;
+- negative trade weight → sell;
+- zero trade weight → no trade.
+
+The strategy does not short assets.
+
+Signals are evaluated daily, but trades are executed only when proposed one-way turnover is at least 5%.
+
+## Position Sizing
+
+Portfolio weights are expressed as fractions of total portfolio equity.
+
+For example:
+
+```text
+target BTC weight = 0.18
+```
+
+means approximately 18% of portfolio value should be allocated to BTC.
+
+Dollar position size is:
+
+```text
+target position value = portfolio equity × target weight
+```
+
+Asset quantity is:
+
+```text
+target quantity = target position value / current market price
+```
+
+The allocation is therefore scale-independent in percentage terms.
+
+However, the current backtest does not model market impact or strategy capacity. A portfolio with $100 million of capital cannot be assumed to obtain the same execution quality as a much smaller portfolio without additional liquidity and slippage analysis.
 
 ## Portfolio-Rule Development
 
-Trading rules were evaluated using **480 out-of-sample development forecasts** from the same four expanding validation folds used during robust model evaluation.
+Trading rules were evaluated using **480 out-of-sample development forecasts** from the same expanding validation folds used during robust model evaluation.
 
-Forecast models remained frozen.
-
-The execution research tested only a small predefined grid:
+The predefined rule grid tested:
 
 - rebalance every 1, 3, or 7 days;
 - minimum one-way turnover threshold of 0%, 2%, or 5%.
 
-No additional model tuning was performed.
+Forecast models remained frozen.
 
 ### Development Results
-
-The strongest practical comparison was between daily rebalancing with no threshold and daily rebalancing with a 5% minimum turnover threshold.
 
 | Rule | Sharpe | Max Drawdown | Avg. Daily Turnover | Transaction Cost | Rebalances |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Daily, 0% threshold | **0.8551** | **-19.81%** | 7.18% | 3.45% | 480 |
 | Daily, 5% threshold | 0.8545 | -20.09% | **6.15%** | **2.95%** | **293** |
 
-The 5% threshold preserved almost all risk-adjusted performance while substantially reducing trading activity.
+The 5% threshold preserved almost all risk-adjusted performance while materially reducing trading.
 
-The development-selected execution rule was therefore frozen as:
+The frozen execution rule is therefore:
 
 - evaluate signals daily;
 - rebalance only when proposed one-way turnover is at least 5%.
-
-No additional threshold search was performed after selection.
 
 ## Backtesting
 
@@ -337,7 +392,7 @@ The strategy backtest uses:
 
 - correct `t → t+1` forecast and return alignment;
 - simple returns for portfolio P&L;
-- natural weight drift between trades;
+- natural portfolio-weight drift;
 - cash allocation;
 - 10 bps transaction costs;
 - 5% minimum turnover threshold;
@@ -351,50 +406,110 @@ The strategy backtest uses:
 | Annualized return | **0.87%** |
 | Annualized volatility | **23.07%** |
 | Sharpe ratio | **0.152** |
+| Sortino ratio | **0.228** |
+| Calmar ratio | **0.035** |
 | Maximum drawdown | **-25.01%** |
+| Max drawdown duration | **264 days** |
+| Hit rate | **48.87%** |
+| 95% historical VaR | **1.56%** |
+| 95% Expected Shortfall | **2.49%** |
 | Average daily turnover | **7.38%** |
 | Total transaction cost | **2.29%** |
 | Average risky exposure | **53.39%** |
 | Average cash weight | **46.61%** |
 | Rebalances | **206** |
 
-The execution threshold reduced unnecessary trading while leaving risk-adjusted performance almost unchanged.
-
-### Baseline Comparison
-
-Before the development-selected execution threshold was applied, the fully daily version produced:
-
-| Metric | Daily Baseline | 5% Threshold |
-| --- | ---: | ---: |
-| Total return | 0.78% | 0.74% |
-| Annualized volatility | 23.20% | **23.07%** |
-| Sharpe ratio | **0.154** | 0.152 |
-| Max drawdown | -25.30% | **-25.01%** |
-| Avg. daily turnover | 8.34% | **7.38%** |
-| Transaction cost | 2.59% | **2.29%** |
-
-The 5% threshold reduced turnover and costs while preserving the overall risk profile.
+The strategy produced modest returns but materially reduced realized risk relative to fully invested crypto benchmarks.
 
 ## Benchmark Comparison
-
-The original volatility strategy was also compared with simple crypto benchmarks over the same final period.
 
 | Strategy | Total Return | Annualized Volatility | Sharpe | Max Drawdown |
 | --- | ---: | ---: | ---: | ---: |
 | BTC Buy & Hold | -5.73% | 44.74% | 0.068 | -39.53% |
 | Equal Weight Buy & Hold | -10.00% | 49.76% | 0.000 | -46.92% |
-| Equal Weight Constant-Weight | -8.57% | 50.26% | 0.042 | -47.18% |
-| Volatility Strategy | **positive** | **~23%** | **~0.15** | **~ -25%** |
+| Equal Weight Daily Rebalanced | -8.67% | 50.26% | 0.039 | -47.20% |
+| Volatility Strategy | **+0.74%** | **23.07%** | **0.152** | **-25.01%** |
 
-The strategy produced modest absolute returns, but materially reduced volatility and drawdowns relative to fully invested crypto benchmarks.
+The strategy's main value is **risk reduction and capital preservation**, rather than aggressive directional return generation.
 
-This is consistent with the project's objective of using volatility forecasting primarily for **risk-aware allocation**, rather than directional return prediction.
+## Production ML
+
+After research and model selection were complete, the frozen champion specifications were retrained on all available historical data.
+
+Production training data:
+
+- Rows per asset: 2,074
+- Start: 2021-01-31
+- End: 2026-10-05
+
+Production models:
+
+| Asset | Model | Configuration |
+| --- | --- | --- |
+| BTC | VAR | lag = 7 |
+| ETH | LSTM | seq = 7, hidden = 32, lr = 0.0005, epochs = 52 |
+| SOL | VAR | lag = 7 |
+| BNB | Ridge | alpha = 100 |
+
+Production artifacts include:
+
+- joint VAR model;
+- VAR history state;
+- BNB Ridge model;
+- BNB feature scaler;
+- ETH LSTM checkpoint;
+- ETH feature scaler;
+- ETH target scaler;
+- production manifest.
+
+A separate inference process successfully reloads the saved artifacts and generates forecasts without retraining.
+
+### Production Forecast Smoke Test
+
+Latest historical forecast origin:
+
+```text
+2026-10-05
+```
+
+Next-day log-volatility forecasts:
+
+| Asset | Forecast |
+| --- | ---: |
+| BTC | -4.1608 |
+| ETH | -3.9151 |
+| SOL | -3.8754 |
+| BNB | -4.0352 |
+
+### Production Portfolio Decision
+
+The forecasts were passed through the same tested allocation and risk-control pipeline used during research.
+
+Result:
+
+| Asset | Target Weight |
+| --- | ---: |
+| BTC | 18.32% |
+| ETH | 14.33% |
+| SOL | 13.77% |
+| BNB | 16.16% |
+| Cash | 37.42% |
+
+Additional outputs:
+
+- forecast portfolio volatility: 1.67% daily;
+- risky exposure: 62.58%;
+- cash weight: 37.42%;
+- turnover from an all-cash portfolio: 62.58%;
+- rebalance decision: yes.
+
+The production decision respects the 20% annual volatility target, concentration controls, maximum risky exposure, and 5% execution threshold.
 
 ## Current Findings
 
 1. Cryptocurrency volatility is strongly persistent.
 2. The 7-day horizon is the most consistent forecasting signal.
-3. HAR-GK provides a strong interpretable benchmark.
+3. HAR-GK is a strong interpretable benchmark.
 4. EGARCH is weaker for the selected range-based volatility target.
 5. Compact feature sets perform as well as or better than larger feature sets.
 6. Ridge and Lasso are strong and stable ML baselines.
@@ -406,18 +521,20 @@ This is consistent with the project's objective of using volatility forecasting 
 12. No single model family dominates every asset.
 13. Final-period forecast performance shows regime sensitivity.
 14. Volatility forecasts can be translated into materially lower portfolio risk.
-15. Lower trading frequency was not beneficial during development validation.
-16. A 5% turnover threshold reduced trading activity without materially reducing Sharpe.
-17. Portfolio risk management adds more value here than directional return prediction.
+15. The 5% turnover threshold reduces trading without materially reducing Sharpe.
+16. Portfolio risk management adds more value here than directional return prediction.
+17. Long-only allocation is consistent with the information content of volatility forecasts.
+18. Production models can be loaded and used without retraining.
+19. The research pipeline now connects directly to executable portfolio targets.
 
 ## Project Status
 
-**Current phase: Phase 10 — Production ML**
+**Current phase: Phase 11 — Live Binance Data**
 
 Completed:
 
 - ✅ Project setup
-- ✅ Binance historical data pipeline
+- ✅ Historical Binance data pipeline
 - ✅ Exploratory data analysis
 - ✅ Feature engineering
 - ✅ Model-ready datasets
@@ -444,7 +561,6 @@ Completed:
 - ✅ Transaction-cost modelling
 - ✅ Development-period execution-rule validation
 - ✅ Weight-drift-aware backtesting
-- ✅ Benchmark comparison
 - ✅ Advanced backtest metrics
 - ✅ Historical VaR and Expected Shortfall
 - ✅ Drawdown-duration analysis
@@ -454,28 +570,35 @@ Completed:
 - ✅ Dynamic exposure reporting
 - ✅ Turnover reporting
 - ✅ Portfolio-weight reporting
+- ✅ Production model retraining
+- ✅ Production artifact persistence
+- ✅ Production model loading
+- ✅ Production inference smoke test
+- ✅ Forecast-to-portfolio decision pipeline
 
-Current strategy:
+Current production strategy:
 
-- BTC → VAR
-- ETH → LSTM
-- SOL → VAR
-- BNB → Ridge
+- BTC → VAR, lag 7
+- ETH → LSTM, sequence 7, hidden size 32
+- SOL → VAR, lag 7
+- BNB → Ridge, alpha 100
 - 20% annual volatility target
 - 40% maximum asset weight
 - 30-day correlation lookback
 - 5% minimum turnover threshold
 - 10 bps transaction-cost assumption
+- maximum risky exposure of 100%
+- long-only
 - no leverage
 
 Next:
 
-Next:
-
-- 🔄 Production model training and persistence
-- ⬜ Production inference pipeline
-- ⬜ Live Binance inference
-- ⬜ Paper trading
+- 🔄 Live Binance closed-candle ingestion
+- ⬜ Live feature generation
+- ⬜ Live production inference
+- ⬜ Portfolio-state persistence
+- ⬜ Paper broker
+- ⬜ Paper trading loop
 - ⬜ Production hardening
 - ⬜ Docker and CI/CD
 - ⬜ Deployment
