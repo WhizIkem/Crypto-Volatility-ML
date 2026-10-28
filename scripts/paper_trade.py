@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from pathlib import Path
 
 import pandas as pd
 
@@ -28,6 +27,13 @@ from crypto_volatility.trading.paper_broker import (
     PaperExecutionResult,
     simulate_paper_rebalance,
 )
+from crypto_volatility.trading.paper_cycle import (
+    check_cycle_status,
+    mark_cycle_processed,
+)
+from crypto_volatility.trading.persistence import (
+    PaperRuntimeTransaction,
+)
 from crypto_volatility.trading.portfolio_state import (
     PortfolioState,
     create_initial_portfolio_state,
@@ -36,39 +42,77 @@ from crypto_volatility.trading.portfolio_state import (
     target_quantities,
     update_market_prices,
 )
+from crypto_volatility.trading.process_lock import (
+    PaperTradingProcessLock,
+)
+from crypto_volatility.trading.runtime import (
+    configure_runtime_logging,
+    load_paper_trading_runtime_config,
+)
+from crypto_volatility.trading.startup_validation import (
+    validate_paper_runtime_startup,
+)
 from crypto_volatility.utils.config import (
     load_config,
 )
 
-STATE_PATH = Path(
-    "logs/paper_portfolio_state.json"
+# ------------------------------------------------------------------
+# Runtime configuration
+# ------------------------------------------------------------------
+
+RUNTIME = load_paper_trading_runtime_config()
+
+STATE_PATH = RUNTIME.state_path
+PORTFOLIO_HISTORY_PATH = RUNTIME.portfolio_history_path
+TRADE_HISTORY_PATH = RUNTIME.trade_history_path
+
+INITIAL_CAPITAL = RUNTIME.initial_capital
+TRANSACTION_COST_BPS = RUNTIME.transaction_cost_bps
+TURNOVER_THRESHOLD = RUNTIME.turnover_threshold
+
+
+# ------------------------------------------------------------------
+# Logging
+# ------------------------------------------------------------------
+
+LOGGER = configure_runtime_logging(
+    log_path=RUNTIME.log_path,
 )
 
-PORTFOLIO_HISTORY_PATH = Path(
-    "logs/paper_portfolio_history.csv"
+
+# ------------------------------------------------------------------
+# Crash-recoverable persistence
+# ------------------------------------------------------------------
+
+RUNTIME_TRANSACTION = PaperRuntimeTransaction(
+    state_path=STATE_PATH,
+    portfolio_history_path=PORTFOLIO_HISTORY_PATH,
+    trade_history_path=TRADE_HISTORY_PATH,
 )
 
-TRADE_HISTORY_PATH = Path(
-    "logs/paper_trades.csv"
+
+# ------------------------------------------------------------------
+# Single-process execution lock
+# ------------------------------------------------------------------
+
+PROCESS_LOCK = PaperTradingProcessLock(
+    RUNTIME.lock_path
 )
-
-INITIAL_CAPITAL = 1_000_000.0
-
-TRANSACTION_COST_BPS = 10.0
-
-TURNOVER_THRESHOLD = 0.05
 
 
 def load_or_create_state() -> PortfolioState:
     """
     Load the persisted paper portfolio.
 
-    If no state exists, initialize a new $1M portfolio fully
-    invested in cash.
+    If no state exists, initialize a new portfolio fully in cash.
     """
     if STATE_PATH.exists():
         print(
             "Loading existing paper portfolio..."
+        )
+
+        LOGGER.info(
+            "Loading existing paper portfolio"
         )
 
         return load_portfolio_state(
@@ -79,10 +123,13 @@ def load_or_create_state() -> PortfolioState:
         "Creating new paper portfolio..."
     )
 
-    state = (
-        create_initial_portfolio_state(
-            INITIAL_CAPITAL
-        )
+    LOGGER.info(
+        "Creating new paper portfolio with initial capital %.2f",
+        INITIAL_CAPITAL,
+    )
+
+    state = create_initial_portfolio_state(
+        INITIAL_CAPITAL
     )
 
     save_portfolio_state(
@@ -110,7 +157,10 @@ def fetch_live_candles() -> dict[
         "interval"
     ]
 
-    datasets = {}
+    datasets: dict[
+        str,
+        pd.DataFrame,
+    ] = {}
 
     for asset, symbol in (
         data_config[
@@ -121,14 +171,18 @@ def fetch_live_candles() -> dict[
             f"Fetching {asset} ({symbol})..."
         )
 
+        LOGGER.info(
+            "Fetching closed Binance candles for %s (%s)",
+            asset,
+            symbol,
+        )
+
         datasets[
             asset
-        ] = (
-            fetch_recent_closed_klines(
-                symbol=symbol,
-                interval=interval,
-                limit=120,
-            )
+        ] = fetch_recent_closed_klines(
+            symbol=symbol,
+            interval=interval,
+            limit=120,
         )
 
     return datasets
@@ -141,9 +195,14 @@ def build_latest_prices(
     ],
 ) -> pd.Series:
     """
-    Extract the latest closed-candle price for each asset.
+    Extract latest closed-candle prices.
+
+    All assets must share the same latest closed candle.
     """
-    prices = {}
+    prices: dict[
+        str,
+        float,
+    ] = {}
 
     timestamps = []
 
@@ -198,7 +257,8 @@ def append_portfolio_history(
     execution_result: PaperExecutionResult | None,
 ) -> None:
     """
-    Append one daily portfolio decision to the paper-trading log.
+    Append one successfully processed daily decision to the
+    portfolio journal.
     """
     PORTFOLIO_HISTORY_PATH.parent.mkdir(
         parents=True,
@@ -292,13 +352,11 @@ def append_portfolio_history(
             ]
         )
 
-    frame = pd.DataFrame(
+    pd.DataFrame(
         [
             row,
         ]
-    )
-
-    frame.to_csv(
+    ).to_csv(
         PORTFOLIO_HISTORY_PATH,
         mode="a",
         header=(
@@ -314,7 +372,7 @@ def append_trade_history(
     execution_result: PaperExecutionResult,
 ) -> None:
     """
-    Append executed paper trades to the trade log.
+    Append executed paper trades to the trade journal.
     """
     if not execution_result.trades:
         return
@@ -324,15 +382,19 @@ def append_trade_history(
         exist_ok=True,
     )
 
+    run_timestamp = (
+        datetime.now(
+            UTC
+        ).isoformat()
+    )
+
     rows = []
 
     for trade in execution_result.trades:
         rows.append(
             {
                 "run_timestamp_utc": (
-                    datetime.now(
-                        UTC
-                    ).isoformat()
+                    run_timestamp
                 ),
                 "forecast_origin": (
                     forecast_origin.isoformat()
@@ -370,18 +432,121 @@ def append_trade_history(
     )
 
 
+def recover_runtime_transaction() -> None:
+    """
+    Recover unfinished transactional persistence before startup
+    validation or state loading.
+    """
+    recovered = (
+        RUNTIME_TRANSACTION
+        .recover_if_needed()
+    )
+
+    if not recovered:
+        return
+
+    LOGGER.warning(
+        "Recovered unfinished paper-trading runtime transaction"
+    )
+
+    print(
+        "\nRecovered an unfinished "
+        "paper-trading transaction."
+    )
+
+    print(
+        "Runtime files were restored to "
+        "their previous consistent state."
+    )
+
+
+def validate_runtime_startup() -> None:
+    """
+    Validate persisted paper-trading files before proceeding.
+    """
+    report = (
+        validate_paper_runtime_startup(
+            state_path=STATE_PATH,
+            portfolio_history_path=(
+                PORTFOLIO_HISTORY_PATH
+            ),
+            trade_history_path=(
+                TRADE_HISTORY_PATH
+            ),
+            initial_capital=(
+                INITIAL_CAPITAL
+            ),
+        )
+    )
+
+    if report.clean_start:
+        LOGGER.info(
+            "Paper-trading startup validation passed: clean runtime"
+        )
+
+        print(
+            "\nStartup integrity check passed."
+        )
+
+        print(
+            "No existing paper portfolio was found."
+        )
+
+        return
+
+    LOGGER.info(
+        "Paper-trading startup validation passed | "
+        "latest_origin=%s | cumulative_cost=%.2f",
+        report.latest_forecast_origin,
+        report.cumulative_transaction_cost,
+    )
+
+    print(
+        "\nStartup integrity check passed."
+    )
+
+    if report.latest_forecast_origin is not None:
+        print(
+            "Latest processed forecast:",
+            report.latest_forecast_origin,
+        )
+
+        print(
+            "Cumulative transaction cost:",
+            f"{report.cumulative_transaction_cost:,.2f}",
+        )
+
+
 def main() -> None:
     print(
         "\nDaily crypto-volatility paper trader"
     )
 
+    # --------------------------------------------------------------
+    # Crash recovery
+    # --------------------------------------------------------------
+
+    recover_runtime_transaction()
+
+    # --------------------------------------------------------------
+    # Startup integrity validation
+    # --------------------------------------------------------------
+
+    validate_runtime_startup()
+
+    # --------------------------------------------------------------
+    # Portfolio state
+    # --------------------------------------------------------------
+
     print(
         "\nLoading paper portfolio..."
     )
 
-    state = (
-        load_or_create_state()
-    )
+    state = load_or_create_state()
+
+    # --------------------------------------------------------------
+    # Production models
+    # --------------------------------------------------------------
 
     print(
         "\nLoading production models..."
@@ -394,6 +559,14 @@ def main() -> None:
     print(
         "Production models loaded."
     )
+
+    LOGGER.info(
+        "Production models loaded"
+    )
+
+    # --------------------------------------------------------------
+    # Live Binance data
+    # --------------------------------------------------------------
 
     print(
         "\nFetching latest Binance data..."
@@ -413,6 +586,10 @@ def main() -> None:
         state,
         latest_prices,
     )
+
+    # --------------------------------------------------------------
+    # Live features
+    # --------------------------------------------------------------
 
     print(
         "\nBuilding live features..."
@@ -466,16 +643,25 @@ def main() -> None:
         forecast_origin,
     )
 
+    LOGGER.info(
+        "Forecast origin: %s",
+        forecast_origin.isoformat(),
+    )
+
     # --------------------------------------------------------------
-    # Idempotency protection.
-    #
-    # Never process the same closed candle twice.
+    # Duplicate-candle protection
     # --------------------------------------------------------------
 
-    if (
-        state.last_forecast_timestamp
-        == forecast_origin.isoformat()
-    ):
+    cycle_status = (
+        check_cycle_status(
+            state=state,
+            forecast_origin=(
+                forecast_origin
+            ),
+        )
+    )
+
+    if cycle_status.already_processed:
         print(
             "\nThis forecast origin has already been processed."
         )
@@ -489,7 +675,17 @@ def main() -> None:
             f"{state.equity():,.2f}",
         )
 
+        LOGGER.info(
+            "Forecast origin %s already processed; "
+            "duplicate execution prevented",
+            forecast_origin.isoformat(),
+        )
+
         return
+
+    # --------------------------------------------------------------
+    # Production model inputs
+    # --------------------------------------------------------------
 
     var_history = (
         build_live_var_history(
@@ -523,6 +719,10 @@ def main() -> None:
         .copy()
     )
 
+    # --------------------------------------------------------------
+    # Forecasts
+    # --------------------------------------------------------------
+
     print(
         "\nGenerating volatility forecasts..."
     )
@@ -542,6 +742,10 @@ def main() -> None:
         )
     )
 
+    # --------------------------------------------------------------
+    # Current portfolio
+    # --------------------------------------------------------------
+
     current_weights = (
         state.risky_weights(
             latest_prices
@@ -553,6 +757,10 @@ def main() -> None:
             latest_prices
         )
     )
+
+    # --------------------------------------------------------------
+    # Portfolio decision
+    # --------------------------------------------------------------
 
     decision = (
         build_trading_decision(
@@ -659,7 +867,25 @@ def main() -> None:
         decision.should_rebalance,
     )
 
-    execution_result = None
+    LOGGER.info(
+        "Portfolio decision | origin=%s | "
+        "equity=%.2f | turnover=%.6f | "
+        "threshold=%.6f | rebalance=%s",
+        forecast_origin.isoformat(),
+        equity_before,
+        decision.turnover,
+        TURNOVER_THRESHOLD,
+        decision.should_rebalance,
+    )
+
+    # --------------------------------------------------------------
+    # Optional execution
+    # --------------------------------------------------------------
+
+    execution_result: (
+        PaperExecutionResult
+        | None
+    ) = None
 
     if decision.should_rebalance:
         targets = (
@@ -710,9 +936,33 @@ def main() -> None:
                 f"cost={trade.transaction_cost:,.2f}"
             )
 
+            LOGGER.info(
+                "Paper trade | origin=%s | "
+                "asset=%s | side=%s | "
+                "quantity=%.8f | price=%.8f | "
+                "notional=%.2f | cost=%.2f",
+                forecast_origin.isoformat(),
+                trade.asset,
+                trade.side,
+                trade.quantity,
+                trade.price,
+                trade.notional,
+                trade.transaction_cost,
+            )
+
         print(
             "\nTotal transaction cost:",
             f"{execution_result.total_transaction_cost:,.2f}",
+        )
+
+        LOGGER.info(
+            "Paper rebalance executed | "
+            "origin=%s | trades=%d | cost=%.2f",
+            forecast_origin.isoformat(),
+            len(
+                execution_result.trades
+            ),
+            execution_result.total_transaction_cost,
         )
 
     else:
@@ -722,66 +972,83 @@ def main() -> None:
 
         print(
             "Portfolio change is below the "
-            "5% turnover threshold."
+            f"{TURNOVER_THRESHOLD:.0%} turnover threshold."
+        )
+
+        LOGGER.info(
+            "No rebalance executed | "
+            "origin=%s | turnover=%.6f",
+            forecast_origin.isoformat(),
+            decision.turnover,
         )
 
     # --------------------------------------------------------------
-    # Mark this closed candle as processed only after successful
-    # forecasting and optional execution.
+    # Successful-cycle marker in memory
     # --------------------------------------------------------------
 
-    state.last_forecast_timestamp = (
-        forecast_origin.isoformat()
-    )
-
-    state.updated_at = (
-        datetime.now(
-            UTC
-        ).isoformat()
-    )
-
-    save_portfolio_state(
-        state,
-        STATE_PATH,
-    )
-
-    append_portfolio_history(
+    mark_cycle_processed(
         state=state,
         forecast_origin=(
             forecast_origin
         ),
-        forecasts=(
-            decision.forecast_log_volatility
-        ),
-        current_weights=(
-            current_weights
-        ),
-        target_weights=(
-            decision.target_weights
-        ),
-        turnover=(
-            decision.turnover
-        ),
-        should_rebalance=(
-            decision.should_rebalance
-        ),
-        equity_before=(
-            equity_before
-        ),
-        execution_result=(
-            execution_result
-        ),
     )
 
-    if execution_result is not None:
-        append_trade_history(
+    # --------------------------------------------------------------
+    # Transactional persistence
+    # --------------------------------------------------------------
+
+    with RUNTIME_TRANSACTION:
+        save_portfolio_state(
+            state,
+            STATE_PATH,
+        )
+
+        append_portfolio_history(
+            state=state,
             forecast_origin=(
                 forecast_origin
+            ),
+            forecasts=(
+                decision.forecast_log_volatility
+            ),
+            current_weights=(
+                current_weights
+            ),
+            target_weights=(
+                decision.target_weights
+            ),
+            turnover=(
+                decision.turnover
+            ),
+            should_rebalance=(
+                decision.should_rebalance
+            ),
+            equity_before=(
+                equity_before
             ),
             execution_result=(
                 execution_result
             ),
         )
+
+        if execution_result is not None:
+            append_trade_history(
+                forecast_origin=(
+                    forecast_origin
+                ),
+                execution_result=(
+                    execution_result
+                ),
+            )
+
+    LOGGER.info(
+        "Paper runtime transaction committed | origin=%s",
+        forecast_origin.isoformat(),
+    )
+
+    # --------------------------------------------------------------
+    # Final reporting
+    # --------------------------------------------------------------
 
     print(
         "\nPortfolio after decision:"
@@ -834,4 +1101,29 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        LOGGER.info(
+            "Starting paper-trading cycle"
+        )
+
+        with PROCESS_LOCK:
+            LOGGER.info(
+                "Paper-trading process lock acquired"
+            )
+
+            main()
+
+        LOGGER.info(
+            "Paper-trading process lock released"
+        )
+
+        LOGGER.info(
+            "Paper-trading cycle finished successfully"
+        )
+
+    except Exception:
+        LOGGER.exception(
+            "Paper-trading cycle failed"
+        )
+
+        raise
