@@ -1,0 +1,62 @@
+services:
+  test:
+    image: crypto-volatility:dev
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    command:
+      - python
+      - -m
+      - pytest
+
+  lint:
+    image: crypto-volatility:dev
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    command:
+      - ruff
+      - check
+      - .
+
+  paper-trader:
+    image: crypto-volatility:dev
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+
+    command:
+      - python
+      - scripts/paper_trade.py
+
+    volumes:
+      - ./logs:/app/logs
+      - ./models/production:/app/models/production:ro
+
+    environment:
+      PAPER_INITIAL_CAPITAL: "${PAPER_INITIAL_CAPITAL:-1000000}"
+      PAPER_TRANSACTION_COST_BPS: "${PAPER_TRANSACTION_COST_BPS:-10}"
+      PAPER_TURNOVER_THRESHOLD: "${PAPER_TURNOVER_THRESHOLD:-0.05}"
+
+      PAPER_STATE_PATH: "/app/logs/paper_portfolio_state.json"
+      PAPER_PORTFOLIO_HISTORY_PATH: "/app/logs/paper_portfolio_history.csv"
+      PAPER_TRADE_HISTORY_PATH: "/app/logs/paper_trades.csv"
+      PAPER_LOG_PATH: "/app/logs/paper_trading.log"
+      PAPER_LOCK_PATH: "/app/logs/paper_trading.lock"
+
+  reconcile:
+    image: crypto-volatility:dev
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+
+    command:
+      - python
+      - scripts/reconcile_paper_trading.py
+
+    volumes:
+      - ./logs:/app/logs:ro

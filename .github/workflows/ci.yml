@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-validation:
+    name: Docker validation
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build CI image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          load: true
+          tags: crypto-volatility:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Ruff
+        run: |
+          docker run --rm \
+            crypto-volatility:ci \
+            ruff check .
+
+      - name: Run pytest
+        run: |
+          docker run --rm \
+            crypto-volatility:ci \
+            python -m pytest
