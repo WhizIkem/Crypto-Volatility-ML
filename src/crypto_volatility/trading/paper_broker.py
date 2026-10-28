@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 
 import numpy as np
@@ -149,6 +150,54 @@ def build_trade_quantities(
     )
 
 
+def _commit_state(
+    *,
+    source: PortfolioState,
+    destination: PortfolioState,
+) -> None:
+    """
+    Copy a successfully executed working state into the
+    caller-owned portfolio state.
+    """
+    destination.cash = float(
+        source.cash
+    )
+
+    destination.quantities = {
+        asset: float(
+            source.quantities[
+                asset
+            ]
+        )
+        for asset in ASSETS
+    }
+
+    destination.last_prices = {
+        asset: float(
+            source.last_prices[
+                asset
+            ]
+        )
+        for asset in ASSETS
+    }
+
+    destination.created_at = (
+        source.created_at
+    )
+
+    destination.updated_at = (
+        source.updated_at
+    )
+
+    destination.last_forecast_timestamp = (
+        source.last_forecast_timestamp
+    )
+
+    destination.last_rebalance_timestamp = (
+        source.last_rebalance_timestamp
+    )
+
+
 def simulate_paper_rebalance(
     *,
     state: PortfolioState,
@@ -158,15 +207,31 @@ def simulate_paper_rebalance(
     rebalance_timestamp: str | None = None,
 ) -> PaperExecutionResult:
     """
-    Simulate a long-only portfolio rebalance.
+    Simulate an atomic long-only portfolio rebalance.
 
-    Sells are processed before buys so sale proceeds are available
-    for subsequent purchases.
+    Execution is performed on a temporary working copy.
+
+    The caller's original PortfolioState is updated only after the
+    entire rebalance succeeds.
+
+    This prevents partial portfolio corruption if a later trade
+    fails.
+
+    Sells are processed before buys so sale proceeds may fund
+    subsequent purchases.
 
     Transaction costs are proportional to traded notional.
 
-    No leverage or negative cash is allowed.
+    No leverage, negative cash, or negative asset quantities are
+    allowed.
     """
+    if not np.isfinite(
+        transaction_cost_bps
+    ):
+        raise ValueError(
+            "transaction_cost_bps must be finite"
+        )
+
     if transaction_cost_bps < 0:
         raise ValueError(
             "transaction_cost_bps cannot be negative"
@@ -186,8 +251,13 @@ def simulate_paper_rebalance(
         )
     )
 
+    working_state = deepcopy(
+        state
+    )
+
     current_quantities = (
-        state.quantity_series()
+        working_state
+        .quantity_series()
     )
 
     differences = (
@@ -207,7 +277,7 @@ def simulate_paper_rebalance(
     total_cost = 0.0
 
     # --------------------------------------------------------------
-    # Process sells first.
+    # Sells first.
     # --------------------------------------------------------------
 
     for asset in ASSETS:
@@ -223,6 +293,20 @@ def simulate_paper_rebalance(
         sell_quantity = abs(
             quantity_change
         )
+
+        current_quantity = float(
+            working_state.quantities[
+                asset
+            ]
+        )
+
+        if sell_quantity > (
+            current_quantity
+            + 1e-12
+        ):
+            raise ValueError(
+                f"Cannot sell more {asset} than currently held"
+            )
 
         price = float(
             execution_prices[
@@ -240,11 +324,14 @@ def simulate_paper_rebalance(
             * cost_rate
         )
 
-        state.quantities[
+        working_state.quantities[
             asset
-        ] -= sell_quantity
+        ] = (
+            current_quantity
+            - sell_quantity
+        )
 
-        state.cash += (
+        working_state.cash += (
             notional
             - transaction_cost
         )
@@ -271,7 +358,7 @@ def simulate_paper_rebalance(
         )
 
     # --------------------------------------------------------------
-    # Process buys second.
+    # Buys second.
     # --------------------------------------------------------------
 
     for asset in ASSETS:
@@ -284,7 +371,7 @@ def simulate_paper_rebalance(
         if quantity_change <= 0:
             continue
 
-        buy_quantity = (
+        buy_quantity = float(
             quantity_change
         )
 
@@ -310,20 +397,20 @@ def simulate_paper_rebalance(
         )
 
         if required_cash > (
-            state.cash
+            working_state.cash
             + 1e-8
         ):
             raise ValueError(
                 f"Insufficient cash to buy {asset}: "
                 f"required={required_cash:.2f}, "
-                f"available={state.cash:.2f}"
+                f"available={working_state.cash:.2f}"
             )
 
-        state.cash -= (
+        working_state.cash -= (
             required_cash
         )
 
-        state.quantities[
+        working_state.quantities[
             asset
         ] += (
             buy_quantity
@@ -337,9 +424,7 @@ def simulate_paper_rebalance(
             PaperTrade(
                 asset=asset,
                 side="BUY",
-                quantity=float(
-                    buy_quantity
-                ),
+                quantity=buy_quantity,
                 price=price,
                 notional=float(
                     notional
@@ -350,7 +435,7 @@ def simulate_paper_rebalance(
             )
         )
 
-    state.last_prices = {
+    working_state.last_prices = {
         asset: float(
             execution_prices[
                 asset
@@ -359,27 +444,38 @@ def simulate_paper_rebalance(
         for asset in ASSETS
     }
 
-    state.updated_at = (
+    working_state.updated_at = (
         utc_now_iso()
     )
 
-    state.last_rebalance_timestamp = (
+    working_state.last_rebalance_timestamp = (
         rebalance_timestamp
         if rebalance_timestamp is not None
-        else state.updated_at
+        else working_state.updated_at
     )
 
-    if state.cash < -1e-8:
+    if working_state.cash < -1e-8:
         raise ValueError(
             "Paper execution created negative cash"
         )
 
     if abs(
-        state.cash
+        working_state.cash
     ) < 1e-8:
-        state.cash = 0.0
+        working_state.cash = 0.0
 
-    state.validate()
+    working_state.validate()
+
+    # --------------------------------------------------------------
+    # Atomic commit.
+    #
+    # Nothing above this point has modified the caller's state.
+    # --------------------------------------------------------------
+
+    _commit_state(
+        source=working_state,
+        destination=state,
+    )
 
     return PaperExecutionResult(
         trades=trades,
