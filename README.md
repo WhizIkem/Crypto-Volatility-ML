@@ -280,7 +280,6 @@ Next:
 - ⬜ automated daily execution
 - ⬜ monitoring and observability
 - ⬜ dashboard
-- ⬜ final GitHub / CV / LinkedIn presentation
 
 ## Key Finding
 
