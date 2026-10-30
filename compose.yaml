@@ -1,6 +1,6 @@
 services:
   test:
-    image: crypto-volatility:dev
+    image: crypto-volatility:prod
     build:
       context: .
       dockerfile: docker/Dockerfile
@@ -10,20 +10,20 @@ services:
       - pytest
 
   lint:
-    image: crypto-volatility:dev
+    image: crypto-volatility:prod
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: docker/Dockerfile.prod
     command:
       - ruff
       - check
       - .
 
   paper-trader:
-    image: crypto-volatility:dev
+    image: crypto-volatility:prod
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: docker/Dockerfile.prod
 
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
 
@@ -47,10 +47,10 @@ services:
       PAPER_LOCK_PATH: "/app/logs/paper_trading.lock"
 
   reconcile:
-    image: crypto-volatility:dev
+    image: crypto-volatility:prod
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: docker/Dockerfile.prod
 
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
 
