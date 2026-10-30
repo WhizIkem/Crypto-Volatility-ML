@@ -276,14 +276,14 @@ Completed:
 - ✅ Oracle Cloud deployment
 - ✅ ARM64 production Docker runtime
 - ✅ automated daily paper-trading execution with systemd
-- ✅ cloud-hosted reconciliation and runtime validation
+- ✅ monitoring and observability
+- ✅ runtime health and scheduler monitoring
+- ✅ paper-trading performance and P&L monitoring
 
 Next:
 
-- 🔄 monitoring and observability
-- ⬜ P&L and performance monitoring
-- ⬜ Streamlit dashboard
-- ⬜ final project documentation and portfolio presentation
+- 🔄 Streamlit dashboard
+- ⬜ final project documentation
 
 ## Key Finding
 
