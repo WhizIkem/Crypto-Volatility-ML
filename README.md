@@ -273,13 +273,17 @@ Completed:
 - ✅ Docker Compose
 - ✅ automated testing
 - ✅ GitHub Actions CI
+- ✅ Oracle Cloud deployment
+- ✅ ARM64 production Docker runtime
+- ✅ automated daily paper-trading execution with systemd
+- ✅ cloud-hosted reconciliation and runtime validation
 
 Next:
 
-- 🔄 deployment
-- ⬜ automated daily execution
-- ⬜ monitoring and observability
-- ⬜ dashboard
+- 🔄 monitoring and observability
+- ⬜ P&L and performance monitoring
+- ⬜ Streamlit dashboard
+- ⬜ final project documentation and portfolio presentation
 
 ## Key Finding
 
