@@ -1,26 +1,39 @@
 # Crypto Volatility Forecasting & Paper Trading System
 
-An end-to-end machine learning and quantitative finance system for forecasting cryptocurrency volatility, translating forecasts into risk-aware portfolio allocations, and running an automated cloud-hosted paper-trading workflow.
+An end-to-end machine learning and quantitative finance system for forecasting cryptocurrency volatility, converting forecasts into risk-aware portfolio allocations, and running an automated cloud-hosted paper-trading workflow.
 
-The project covers the complete path from research to production-style deployment:
+## Live Dashboard
+
+**Public dashboard:**  
+https://cryptovolatility.duckdns.org
+
+The dashboard provides live visibility into portfolio state, volatility forecasts, allocation decisions, execution activity, transaction costs, drawdown, scheduler health, reconciliation, and runtime integrity.
+
+---
+
+## Project Overview
+
+The project covers the full workflow from research to production-style deployment:
 
 - historical Binance data ingestion;
-- volatility feature engineering;
+- exploratory analysis and volatility feature engineering;
 - econometric, machine-learning, and deep-learning models;
 - leakage-safe time-series validation;
 - portfolio construction and realistic backtesting;
 - production model persistence and inference;
 - live Binance market data;
-- persistent paper trading;
-- execution safety and reconciliation;
-- Dockerized production runtimes;
+- automated persistent paper trading;
+- runtime safety and accounting reconciliation;
+- Dockerized execution;
 - automated testing and GitHub Actions CI;
 - Oracle Cloud deployment;
-- automated daily execution;
-- runtime monitoring and observability;
-- Streamlit production dashboard.
+- automated daily execution with systemd;
+- monitoring and observability;
+- public Streamlit dashboard over HTTPS.
 
 ## Assets
+
+The system models:
 
 - BTCUSDT
 - ETHUSDT
@@ -39,9 +52,11 @@ The research pipeline uses:
 
 - chronological train / validation / test splits;
 - purged split boundaries;
-- training-only feature scaling;
+- training-only scaling;
 - expanding-window validation;
 - a separate untouched final test period.
+
+Random train/test splitting is not used.
 
 ## Selected Models
 
@@ -63,11 +78,11 @@ Final untouched test results:
 | SOL | 0.3402 | 0.4413 |
 | BNB | 0.3369 | 0.4250 |
 
-Model choices and hyperparameters were frozen before evaluation on the final test period.
+Model choices and hyperparameters were frozen before final test evaluation.
 
 ## Portfolio Strategy
 
-Volatility forecasts are converted into long-only portfolio weights using:
+Volatility forecasts are converted into long-only portfolio weights through:
 
 ```text
 next-day volatility forecasts
@@ -85,7 +100,7 @@ forecast covariance
 crypto exposure + cash
 ```
 
-Execution rules:
+Strategy rules:
 
 - 20% annualized volatility target;
 - 40% maximum weight per asset;
@@ -96,7 +111,7 @@ Execution rules:
 - 10 bps transaction costs;
 - rebalance only when one-way turnover is at least 5%.
 
-The strategy is long-only because the forecasting models estimate risk rather than expected return direction.
+The strategy is long-only because the models forecast risk rather than expected return direction.
 
 ## Backtest Results
 
@@ -120,24 +135,23 @@ Benchmark comparison:
 | Equal Weight Buy & Hold | -10.00% | 49.76% | -46.92% |
 | **Volatility Strategy** | **+0.74%** | **23.07%** | **-25.01%** |
 
-The primary value of the strategy is **risk reduction and capital preservation**, rather than aggressive directional return generation.
+The strategy is designed primarily as a **risk-management layer**, not as a directional return-maximization strategy.
 
 ## Production Pipeline
 
-Frozen model specifications are retrained on the full historical dataset and persisted for production inference.
+Frozen model specifications are retrained on the full historical dataset and persisted for live inference.
 
 Production artifacts include:
 
 - joint VAR model;
 - VAR history state;
 - ETH LSTM checkpoint;
-- ETH feature scaler;
-- ETH target scaler;
+- ETH feature and target scalers;
 - BNB Ridge model;
 - BNB feature scaler;
 - production manifest.
 
-The live pipeline reuses the same feature-engineering logic as the research pipeline.
+The live path reuses the same feature-engineering logic as the research pipeline.
 
 ```text
 Binance closed candles
@@ -155,7 +169,7 @@ paper-trading decision
 
 ## Paper Trading
 
-The paper-trading system maintains a persistent simulated portfolio initialized with:
+The system maintains a persistent simulated portfolio initialized with:
 
 ```text
 $1,000,000
@@ -169,7 +183,7 @@ It supports:
 - transaction-cost deduction;
 - 5% turnover threshold;
 - duplicate-candle protection;
-- portfolio and trade journaling;
+- trade and portfolio journals;
 - crash-recoverable persistence;
 - startup integrity validation;
 - single-process locking;
@@ -185,13 +199,11 @@ logs/paper_trading.log
 logs/paper_scheduler.log
 ```
 
-Runtime files are excluded from version control.
-
-The paper account persists across daily runs and validates state, equity, cash, trade history, and transaction costs after execution.
+Runtime state is excluded from version control.
 
 ## Runtime Safety
 
-The production paper-trading path includes:
+The paper-trading execution path includes:
 
 ```text
 process lock
@@ -211,52 +223,57 @@ transactional persistence
 reconciliation
 ```
 
-Additional safeguards include:
+Safeguards include:
 
-- prevention of concurrent paper-trading processes;
 - duplicate forecast-origin protection;
-- persisted-state validation before execution;
-- atomic state and journal persistence;
-- post-cycle accounting reconciliation;
-- scheduler-health monitoring;
+- prevention of concurrent execution;
+- persisted-state validation;
+- atomic state updates;
+- crash recovery;
+- post-cycle reconciliation;
+- scheduler freshness checks;
 - stale-runtime detection.
 
 ## Monitoring & Observability
 
-A dedicated read-only monitoring layer tracks the running paper account.
+A read-only monitoring layer tracks the running paper account.
 
-Current monitoring includes:
+It includes:
 
 - current equity;
-- cumulative P&L;
-- cumulative return;
+- cumulative P&L and return;
 - latest-period P&L and return;
 - equity curve;
 - current and maximum drawdown;
 - risky exposure and cash allocation;
-- current asset weights;
+- asset weights;
 - transaction costs;
 - trade and rebalance counts;
 - latest forecast origin;
 - latest trading run;
 - scheduler freshness;
 - reconciliation health;
-- runtime integrity checks.
+- state/history consistency;
+- duplicate-origin checks.
 
-Annualized volatility and Sharpe ratio are displayed only after a minimum of 30 daily portfolio observations to avoid presenting highly unstable statistics from an extremely small sample.
+Annualized volatility and Sharpe ratio are displayed only after at least 30 daily portfolio observations are available.
 
 ## Streamlit Dashboard
 
-The project includes a read-only Streamlit dashboard for production monitoring.
+The public monitoring interface is built with Streamlit.
 
-The dashboard provides four main views:
+**Live URL:**  
+https://cryptovolatility.duckdns.org
+
+The dashboard has four views:
 
 ### Overview
 
-- current equity;
-- cumulative P&L and return;
-- risky exposure and cash reserve;
-- latest-period performance;
+- portfolio equity;
+- cumulative return;
+- risky exposure;
+- cash reserve;
+- latest-period P&L;
 - drawdown;
 - transaction costs;
 - equity curve;
@@ -266,18 +283,18 @@ The dashboard provides four main views:
 ### Portfolio & Forecasts
 
 - latest volatility forecasts;
-- current vs target portfolio allocation;
+- current vs target allocation;
 - weight changes;
 - rebalance signal;
-- risky and cash exposure;
-- portfolio decision summary.
+- cash and risky exposure;
+- asset-level allocation decisions.
 
 ### Execution
 
 - trading cycles;
 - execution rate;
 - portfolio turnover;
-- transaction-cost history;
+- transaction costs;
 - turnover threshold;
 - recent simulated trades.
 
@@ -291,44 +308,44 @@ The dashboard provides four main views:
 - runtime timeline;
 - operational safeguards.
 
-The dashboard does not execute trades or modify portfolio state.
+The dashboard is read-only and cannot execute trades or modify portfolio state.
 
-## Oracle Cloud Deployment
+## Cloud Deployment
 
-The production runtime is deployed on an Oracle Cloud ARM64 virtual machine.
-
-Environment:
+The production system runs on an Oracle Cloud ARM64 virtual machine.
 
 ```text
 Architecture: aarch64
+Operating system: Ubuntu
 Memory: ~12 GB
 Storage: ~45 GB
-Operating system: Ubuntu
 ```
-
-The deployment uses a lean ARM64-compatible production Docker image with CPU-only PyTorch.
 
 The Oracle VM hosts:
 
 ```text
-production model runtime
+production models
         +
 live Binance pipeline
         +
 paper trader
+        +
+persistent runtime state
         +
 reconciliation
         +
 monitoring
         +
 Streamlit dashboard
+        +
+Caddy reverse proxy
 ```
 
-Production models are mounted read-only while runtime paper-trading state is persisted separately.
+The production runtime uses a lean ARM64-compatible Docker image with CPU-only PyTorch.
 
 ## Automated Daily Execution
 
-Paper trading is automatically triggered using a systemd timer on the Oracle VM.
+Paper trading is triggered automatically using a systemd user timer on Oracle.
 
 ```text
 systemd timer
@@ -342,36 +359,41 @@ reconciliation
 scheduler health log
 ```
 
-The scheduler:
+The production schedule runs daily at:
 
-- runs daily;
-- persists across SSH logout;
-- records successful and failed executions;
-- runs reconciliation after every trading cycle.
+```text
+00:15 UTC
+```
 
-The local development-machine scheduler is disabled so Oracle remains the single active production paper-trading host.
+Oracle Cloud is the single active scheduled paper-trading host.
+
+## Public HTTPS
+
+The Streamlit application runs internally on port `8501`.
+
+Public traffic follows:
+
+```text
+Internet
+   ↓
+HTTPS
+   ↓
+cryptovolatility.duckdns.org
+   ↓
+Caddy
+   ↓
+Streamlit
+   ↓
+live Oracle runtime data
+```
+
+Caddy handles the reverse proxy and HTTPS, while DuckDNS provides the public hostname.
 
 ## Docker
 
-The project uses separate Docker environments for development, production trading, and dashboard deployment.
+The project uses separate Docker environments for development, production trading, and dashboard serving.
 
-### Development
-
-Used for:
-
-- Ruff;
-- pytest;
-- research/runtime validation.
-
-### Production Trader
-
-Uses a lean ARM64-compatible production image with CPU-only PyTorch.
-
-### Dashboard
-
-Uses a separate lightweight Streamlit image and mounts runtime logs read-only.
-
-Example commands:
+Common commands:
 
 ```bash
 docker compose run --rm lint
@@ -384,17 +406,19 @@ The production environment has been validated with:
 
 - Python 3.14;
 - Ruff;
-- full automated test suite;
+- the full automated test suite;
 - production model loading;
 - live Binance ingestion;
-- paper trading against the persisted account;
+- persistent paper trading;
 - reconciliation;
 - ARM64 Docker execution;
-- Oracle Cloud deployment.
+- Oracle Cloud execution;
+- automated scheduling;
+- public dashboard serving.
 
 ## Continuous Integration
 
-GitHub Actions builds and validates the project on pushes and pull requests.
+GitHub Actions validates the project on pushes and pull requests.
 
 The CI workflow runs:
 
@@ -406,7 +430,14 @@ Ruff
 pytest
 ```
 
-The CI environment does **not** run the live paper trader, access production paper-account state, or execute scheduled cloud workloads.
+The CI environment does not:
+
+- execute the live paper trader;
+- access production account state;
+- run the Oracle scheduler;
+- deploy automatically to Oracle.
+
+Production deployment is currently manual after validated changes are pushed to GitHub.
 
 ## Repository Structure
 
@@ -440,64 +471,138 @@ crypto-volatility-ml/
 └── README.md
 ```
 
-Reusable application logic lives in `src/`, notebooks are retained for research and analysis, and production/runtime concerns are separated from model experimentation.
+Reusable application logic lives in `src/`, while notebooks are retained for research and analysis.
+
+## Running the Project
+
+### Development checks
+
+```bash
+docker compose run --rm lint
+docker compose run --rm test
+```
+
+### Run a paper-trading cycle manually
+
+```bash
+docker compose run --rm paper-trader
+```
+
+### Run reconciliation
+
+```bash
+docker compose run --rm reconcile
+```
+
+### Run the dashboard locally
+
+Build:
+
+```bash
+docker build \
+  -f docker/Dockerfile.dashboard \
+  -t crypto-volatility:dashboard-dev \
+  .
+```
+
+Run:
+
+```bash
+docker run --rm \
+  -p 8502:8501 \
+  -v "$PWD/logs:/app/logs:ro" \
+  crypto-volatility:dashboard-dev
+```
+
+Then open:
+
+```text
+http://localhost:8502
+```
 
 ## Current Status
 
 Completed:
 
-- ✅ historical data pipeline
+- ✅ historical Binance data pipeline
 - ✅ EDA and feature engineering
 - ✅ econometric / ML / DL model research
-- ✅ robust time-series validation
+- ✅ leakage-safe time-series validation
 - ✅ final model selection
 - ✅ portfolio construction
 - ✅ realistic backtesting
-- ✅ production model training and inference
+- ✅ production training and inference
 - ✅ live Binance pipeline
 - ✅ persistent paper trading
-- ✅ execution safety and reconciliation
-- ✅ Docker
-- ✅ Docker Compose
+- ✅ transaction-cost modelling
+- ✅ execution safety and crash recovery
+- ✅ reconciliation
+- ✅ Docker and Docker Compose
 - ✅ automated testing
 - ✅ GitHub Actions CI
 - ✅ Oracle Cloud deployment
-- ✅ ARM64 production Docker runtime
-- ✅ automated daily paper-trading execution with systemd
+- ✅ ARM64 production runtime
+- ✅ automated daily execution with systemd
 - ✅ monitoring and observability
-- ✅ runtime health and scheduler monitoring
-- ✅ paper-trading performance and P&L monitoring
 - ✅ Streamlit production dashboard
+- ✅ public HTTPS deployment
 
-Next:
+### Live System
 
-- 🔄 final dashboard validation on Oracle
-- ⬜ final project documentation and cleanup
+**Dashboard:**  
+https://cryptovolatility.duckdns.org
+
+**Trading schedule:**  
+Daily at 00:15 UTC
+
+**Runtime:**  
+Oracle Cloud ARM64
+
+**Mode:**  
+Simulated paper trading
 
 ## Key Finding
 
-This project demonstrates that volatility forecasting can be used effectively as a **risk-management layer** rather than simply as a prediction exercise.
+The project demonstrates that volatility forecasting can be used effectively as a **risk-management layer**.
 
-Different assets benefit from different forecasting models, and combining those forecasts with volatility targeting, correlation-aware allocation, cash reserves, concentration limits, transaction costs, and turnover controls materially reduces portfolio risk relative to fully invested crypto benchmarks.
+Different assets benefit from different forecasting approaches, and combining those forecasts with volatility targeting, correlation-aware allocation, cash reserves, concentration limits, transaction costs, and turnover controls materially reduces portfolio risk relative to fully invested crypto benchmarks.
 
-The project also demonstrates the complete engineering path from:
+The complete engineering path is:
 
 ```text
-research
-    ↓
-model validation
-    ↓
+historical data
+      ↓
+EDA
+      ↓
+feature engineering
+      ↓
+model research
+      ↓
+time-series validation
+      ↓
+model selection
+      ↓
 portfolio construction
-    ↓
+      ↓
 backtesting
-    ↓
+      ↓
 production inference
-    ↓
-live data
-    ↓
+      ↓
+live market data
+      ↓
 automated paper trading
-    ↓
+      ↓
 cloud deployment
-    ↓
-monitoring and observability
+      ↓
+monitoring
+      ↓
+public dashboard
 ```
+
+## Disclaimer
+
+This project is for research, educational, and portfolio demonstration purposes.
+
+The trading environment is simulated. No real-money orders are submitted to Binance or any other exchange.
+
+Nothing in this repository constitutes financial or investment advice.
